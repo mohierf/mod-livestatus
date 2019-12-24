@@ -30,8 +30,7 @@ import os
 import sys
 import time
 import random
-
-from shinken_test import unittest
+import copy
 
 from shinken_modules import TestConfig
 from shinken.comment import Comment
@@ -42,28 +41,35 @@ from mock_livestatus import mock_livestatus_handle_request
 sys.setcheckinterval(10000)
 
 
-
 @mock_livestatus_handle_request
 class TestConfigBig(TestConfig):
     def setUp(self):
         start_setUp = time.time()
-        self.setup_with_file('etc/shinken_5r_100h_2000s.cfg')
+        self.setup_with_file('../../../etc/shinken_5r_100h_2000s.cfg')
         Comment.id = 1
         self.testid = str(os.getpid() + random.randint(1, 1000))
         self.init_livestatus()
-        print "Cleaning old broks?"
         self.sched.conf.skip_initial_broks = False
-        self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
+        self.sched.brokers['Default-Broker'] = {'broks': [], 'has_full_broks': False}
         self.sched.fill_initial_broks('Default-Broker')
 
         self.update_broker()
-        print "************* Overall Setup:", time.time() - start_setUp
+        print("************* Overall Setup: %.2f" % (time.time() - start_setUp))
         # add use_aggressive_host_checking so we can mix exit codes 1 and 2
         # but still get DOWN state
         host = self.sched.hosts.find_by_name("test_host_000")
         host.__class__.use_aggressive_host_checking = 1
 
-
+    def update_broker(self, dodeepcopy=False):
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
+            if dodeepcopy:
+                brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
+            self.livestatus_broker.manage_brok(brok)
+        self.sched.brokers['Default-Broker']['broks'] = []
 
     def test_negate(self):
         # test_host_005 is in hostgroup_01
@@ -79,14 +85,14 @@ OutputFormat: python
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(query)
         pyresponse = eval(response)
-        print len(pyresponse)
+        print("Response length: %d" % len(pyresponse))
         query = """GET services
 Columns: host_name description
 OutputFormat: python
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(query)
         allpyresponse = eval(response)
-        print len(allpyresponse)
+        print("Response length: %d" % len(allpyresponse))
         query = """GET services
 Columns: host_name description
 Filter: host_name = test_host_005
@@ -97,7 +103,7 @@ OutputFormat: python
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(query)
         negpyresponse = eval(response)
-        print len(negpyresponse)
+        print("Response length: %d" % len(negpyresponse))
         # only test_ok_00 + without test_ok_00 must be all services
         self.assertEqual(len(pyresponse) + len(negpyresponse), len(allpyresponse) )
 
@@ -149,7 +155,7 @@ OutputFormat: python
         print "ho_reponse", h_response
         print "hg_reponse", hg_response
         self.assertEqual(hg_response, h_response )
-        self.assert_(h_response == """0;0;0;0;0
+        self.assertTrue(h_response == """0;0;0;0;0
 """)
 
         # test_ok_00
@@ -161,7 +167,7 @@ OutputFormat: python
         h_response, keepalive = self.livestatus_broker.livestatus.handle_request(h_request)
         hg_response, keepalive = self.livestatus_broker.livestatus.handle_request(hg_request)
         self.assertEqual(hg_response, h_response )
-        self.assert_(h_response == """1;0;0;1;0
+        self.assertTrue(h_response == """1;0;0;1;0
 """)
 
         # test_ok_00
@@ -173,7 +179,7 @@ OutputFormat: python
         h_response, keepalive = self.livestatus_broker.livestatus.handle_request(h_request)
         hg_response, keepalive = self.livestatus_broker.livestatus.handle_request(hg_request)
         self.assertEqual(hg_response, h_response )
-        self.assert_(h_response == """1;1;0;2;0
+        self.assertTrue(h_response == """1;1;0;2;0
 """)
 
         # test_ok_00
@@ -185,7 +191,7 @@ OutputFormat: python
         h_response, keepalive = self.livestatus_broker.livestatus.handle_request(h_request)
         hg_response, keepalive = self.livestatus_broker.livestatus.handle_request(hg_request)
         self.assertEqual(hg_response, h_response )
-        self.assert_(h_response == """1;1;0;2;1
+        self.assertTrue(h_response == """1;1;0;2;1
 """)
 
         # test_ok_00
@@ -197,7 +203,7 @@ OutputFormat: python
         h_response, keepalive = self.livestatus_broker.livestatus.handle_request(h_request)
         hg_response, keepalive = self.livestatus_broker.livestatus.handle_request(hg_request)
         self.assertEqual(hg_response, h_response )
-        self.assert_(h_response == """1;1;0;2;2
+        self.assertTrue(h_response == """1;1;0;2;2
 """)
 
     def test_stats(self):
@@ -236,7 +242,6 @@ Stats: state = 3"""
         print 'query_6_______________\n%s\n%s\n' % (request, response)
         self.assertEqual('2000;1993;3;3;1\n', response )
 
-
     def test_statsgroupby(self):
         self.print_header()
         now = time.time()
@@ -265,10 +270,10 @@ Stats: state = 3"""
         request = 'GET services\nFilter: contacts >= test_contact\nStats: state != 9999\nStats: state = 0\nStats: state = 1\nStats: state = 2\nStats: state = 3\nStatsGroupBy: host_name'
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         print response
-        self.assert_(self.contains_line(response, 'test_host_005;20;17;3;0;0'))
-        self.assert_(self.contains_line(response, 'test_host_007;20;18;0;1;1'))
-        self.assert_(self.contains_line(response, 'test_host_025;20;18;0;2;0'))
-        self.assert_(self.contains_line(response, 'test_host_026;20;20;0;0;0'))
+        self.assertTrue(self.contains_line(response, 'test_host_005;20;17;3;0;0'))
+        self.assertTrue(self.contains_line(response, 'test_host_007;20;18;0;1;1'))
+        self.assertTrue(self.contains_line(response, 'test_host_025;20;18;0;2;0'))
+        self.assertTrue(self.contains_line(response, 'test_host_026;20;20;0;0;0'))
 
         request = """GET services
 Stats: state != 9999
@@ -276,10 +281,10 @@ StatsGroupBy: state
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         print response
-        self.assert_(self.contains_line(response, '0;1993'))
-        self.assert_(self.contains_line(response, '1;3'))
-        self.assert_(self.contains_line(response, '2;3'))
-        self.assert_(self.contains_line(response, '3;1'))
+        self.assertTrue(self.contains_line(response, '0;1993'))
+        self.assertTrue(self.contains_line(response, '1;3'))
+        self.assertTrue(self.contains_line(response, '2;3'))
+        self.assertTrue(self.contains_line(response, '3;1'))
 
     def test_hostsbygroup(self):
         self.print_header()
@@ -382,7 +387,7 @@ ResponseHeader: fixed16
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         tac = time.clock()
         print "livestatus duration %f" % (tac - tic)
-        print response
+        # print(response)
         # TODO
 
         # Again, without Filter:
@@ -550,7 +555,7 @@ OutputFormat: csv
         live_sorted = '\n'.join(sorted(["%s;%s;%d" % (s.host_name, s.service_description, s.state_id) for s in self.livestatus_broker.rg.services]))
 
         # Unsorted in the scheduler, sorted in livestatus
-        self.assert_(sched_unsorted != live_sorted)
+        self.assertTrue(sched_unsorted != live_sorted)
         sched_live_sorted = '\n'.join(sorted(sched_unsorted.split('\n'))) + '\n'
         sched_live_sorted = sched_live_sorted.strip()
         print "first of sched\n(%s)\n--------------\n" % sched_unsorted[:100]
@@ -614,8 +619,6 @@ OutputFormat: csv"""
         # Check if the result of the query is sorted
         ## FIXME LAUSSER self.assertEqual(response.strip(), '\n'.join(sorted(sched_bad_unsorted.split('\n'))) )
 
-
-
     # We look for the perf of the unhandled srv
     # page view of Thruk. We only enable it when we need
     # it's not a true test.
@@ -660,7 +663,7 @@ ResponseHeader: fixed16
 """
         print "Query 1 launched (Get overall status)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 1: %.3f" % load_time
@@ -778,7 +781,7 @@ ResponseHeader: fixed16
 """
         print "Query 2 launched (Get hosts stistics)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 2: %.3f" % load_time
@@ -935,7 +938,7 @@ ResponseHeader: fixed16
 """
         print "Query 3 launched (Get services statistics)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 3: %.3f" % load_time
@@ -953,7 +956,7 @@ ResponseHeader: fixed16
 """
         print "Query 4 launched (Get comments)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 4: %.3f" % load_time
@@ -971,7 +974,7 @@ ResponseHeader: fixed16
 """
         print "Query 5 launched (Get downtimes)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 5: %.3f" % load_time
@@ -1006,7 +1009,7 @@ ResponseHeader: fixed16
 """
         print "Query 6 launched (Get bad services)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 6: %.3f" % load_time
@@ -1042,7 +1045,7 @@ ResponseHeader: fixed16
 """
         print "Query 7 launched (Get bad service data)"
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        #print response
+        # print(response)
         load_time = time.time() - query_start
         total_page += load_time
         print "Response time 7: %.3f" % load_time
@@ -1067,7 +1070,7 @@ OutputFormat: csv
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         print "r1", response
-        self.assert_(response == """
+        self.assertTrue(response == """
 """)
 
         request = """GET downtimes
@@ -1082,7 +1085,7 @@ OutputFormat: csv
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         print "r1", response
-        self.assert_(response == """
+        self.assertTrue(response == """
 """)
 
         request = """GET services
@@ -1107,7 +1110,7 @@ OutputFormat: csv
         print "r1", response
         # test_host_099 matches by name
         # test_host_098 matches by address (test_host_098 has 127.0.0.99)
-        self.assert_(response == """0;test_host_098;0
+        self.assertTrue(response == """0;test_host_098;0
 0;test_host_098;0
 0;test_host_098;0
 0;test_host_098;0
@@ -1172,8 +1175,3 @@ Columns: description host_name display_name"""
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         print response
         self.assertEqual('test_unknown_00;test_host_000;display_unknown_00\n', response )
-
-if __name__ == '__main__':
-    #import cProfile
-    command = """unittest.main()"""
-    unittest.main()

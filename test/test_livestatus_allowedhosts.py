@@ -26,17 +26,18 @@
 # This file is used to test *allowed_hosts* parameter of Livestatus module
 #
 
-import sys
 import os
-
-from shinken_test import time_hacker, unittest
+import sys
 import time
 import random
+import copy
+
 import socket
 import threading
 
 from shinken.objects.module import Module
 from shinken.comment import Comment
+from shinken_test import time_hacker, unittest
 from test_livestatus import TestConfig
 
 sys.setcheckinterval(10000)
@@ -55,10 +56,21 @@ class TestConfigAuth(TestConfig):
         self.lql_thread.join()
         super(TestConfig, self).tearDown()
 
+    def update_broker(self, dodeepcopy=False):
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
+            if dodeepcopy:
+                brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
+            self.livestatus_broker.manage_brok(brok)
+        self.sched.brokers['Default-Broker']['broks'] = []
+
     def init_livestatus(self, conf):
         super(TestConfigAuth, self).init_livestatus(conf)
         self.sched.conf.skip_initial_broks = False
-        self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
+        self.sched.brokers['Default-Broker'] = {'broks': [], 'has_full_broks': False}
         self.sched.fill_initial_broks('Default-Broker')
         self.update_broker()
         self.nagios_path = None
@@ -139,13 +151,3 @@ class TestConfigAuth(TestConfig):
         # test livestatus connection
         self.assertFalse(self.query_livestatus(modconf.host, int(modconf.port), "GET hosts\n\n"))
 
-
-
-if __name__ == '__main__':
-    #import cProfile
-    command = """unittest.main()"""
-    unittest.main()
-    #cProfile.runctx( command, globals(), locals(), filename="/tmp/livestatus.profile" )
-
-    #allsuite = unittest.TestLoader.loadTestsFromModule(TestConfig)
-    #unittest.TextTestRunner(verbosity=2).run(allsuite)

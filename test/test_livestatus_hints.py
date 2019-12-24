@@ -21,13 +21,12 @@
 # along with Shinken.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from __future__ import print_function
 import os
 import sys
 import time
 import random
 import copy
-
-from shinken_test import unittest
 
 from shinken_modules import ShinkenModulesTest
 
@@ -41,35 +40,32 @@ sys.setcheckinterval(10000)
 class PerfTst(ShinkenModulesTest):
 
     def update_broker(self, dodeepcopy=False):
-        # The brok should be manage in the good order
-        ids = self.sched.broks.keys()
-        ids.sort()
-        for brok_id in ids:
-            brok = self.sched.broks[brok_id]
-            #print "Managing a brok type", brok.type, "of id", brok_id
-            #if brok.type == 'update_service_status':
-            #    print "Problem?", brok.data['is_problem']
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
             if dodeepcopy:
                 brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
             self.livestatus_broker.manage_brok(brok)
-        self.sched.broks = {}
+        self.sched.brokers['Default-Broker']['broks'] = []
 
 
 @mock_livestatus_handle_request
 class TestConfigBig(ShinkenModulesTest):
     def setUp(self):
-        print "comment me for performance tests"
-        self.setup_with_file('etc/shinken_5r_100h_2000s.cfg')
+        print("comment me for performance tests")
+        self.setup_with_file('../../../etc/shinken_5r_100h_2000s.cfg')
         # ...test_router_09
         # ...test_host_0999
         self.testid = str(os.getpid() + random.randint(1, 1000))
         self.init_livestatus()
 
         self.sched.conf.skip_initial_broks = False
-        self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
+        self.sched.brokers['Default-Broker'] = {'broks': [], 'has_full_broks': False}
         self.sched.fill_initial_broks('Default-Broker')
-
         self.update_broker()
+
         self.nagios_path = None
         self.livestatus_path = None
         self.nagios_config = None
@@ -84,7 +80,7 @@ class TestConfigBig(ShinkenModulesTest):
             os.remove(self.livelogs + "-journal")
         if os.path.exists("tmp/archives"):
             for db in os.listdir("tmp/archives"):
-                print "cleanup", db
+                print("cleanup %s" % db)
                 os.remove(os.path.join("tmp/archives", db))
         if os.path.exists('var/nagios.log'):
             os.remove('var/nagios.log')
@@ -93,6 +89,17 @@ class TestConfigBig(ShinkenModulesTest):
         if os.path.exists('var/status.dat'):
             os.remove('var/status.dat')
         self.livestatus_broker = None
+
+    def update_broker(self, dodeepcopy=False):
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
+            if dodeepcopy:
+                brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
+            self.livestatus_broker.manage_brok(brok)
+        self.sched.brokers['Default-Broker']['broks'] = []
 
     def adjust_object_prefixes(self):
         host = [h for h in self.sched.hosts if "host" in h.host_name][0]
@@ -206,7 +213,6 @@ KeepAlive: on
         pyresponse = eval(response)
         self.assertEqual(range * self.services_per_host, len(pyresponse) )
 
-
     def test_check_hint_services_by_host(self):
         self.print_header()
         now = time.time()
@@ -243,7 +249,6 @@ KeepAlive: on
         pyresponse = eval(response)
         self.assertEqual(self.services_per_host, len(pyresponse) )
 
-
     def test_check_hint_hosts_by_host(self):
         self.print_header()
         now = time.time()
@@ -267,8 +272,8 @@ KeepAlive: on
         request += """OutputFormat:json
 KeepAlive: on
 """
-#ResponseHeader: fixed16
-        #response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
+        # ResponseHeader: fixed16
+        # response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(1, len(pyresponse) )
@@ -301,18 +306,18 @@ Filter: host_groups >= test
 OutputFormat:json
 KeepAlive: on
 """
-#ResponseHeader: fixed16
-        print request
+        # ResponseHeader: fixed16
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
-        print len(pyresponse)
+        print(len(pyresponse))
         self.assertEqual(2 * self.services_per_host, len(pyresponse) )
 
         request += """Filter: host_name !=
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
-        print len(pyresponse)
+        print(len(pyresponse))
         self.assertEqual(2 * self.services_per_host, len(pyresponse) )
 
     def test_check_hint_hosts_by_hostgroup(self):
@@ -343,11 +348,10 @@ KeepAlive: on
 
         request += """Filter: host_name !=
 """
-        print request
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(2, len(pyresponse) )
-
 
     def test_check_hint_servicesbyhostgroup(self):
         self.print_header()
@@ -380,7 +384,7 @@ KeepAlive: on
 
         request += """Filter: host_name !=
 """
-        print request
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(allgroups * self.services_per_host, len(pyresponse) )
@@ -441,7 +445,7 @@ OutputFormat:json
 KeepAlive: on
 """
 #ResponseHeader: fixed16
-        print request
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(2, len(pyresponse) )
@@ -477,14 +481,14 @@ OutputFormat:json
 KeepAlive: on
 """
 #ResponseHeader: fixed16
-        print request
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(allgroups, len(pyresponse) )
 
         request += """Filter: service_description !=
 """
-        print request
+        print(request)
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         pyresponse = eval(response)
         self.assertEqual(allgroups, len(pyresponse) )
@@ -499,13 +503,3 @@ Stats
 
 
 """
-
-
-if __name__ == '__main__':
-    #import cProfile
-    command = """unittest.main()"""
-    unittest.main()
-    #cProfile.runctx( command, globals(), locals(), filename="/tmp/livestatus.profile" )
-
-    #allsuite = unittest.TestLoader.loadTestsFromModule(TestConfig)
-    #unittest.TextTestRunner(verbosity=2).run(allsuite)

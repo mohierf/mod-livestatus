@@ -1,24 +1,33 @@
 language: python
 python:
   - "2.7"
-  - "2.6"
 
 install:
-  - "pip install coveralls"
-  - "pip install nose-cov"
-  - "pip install unittest2"
+  - sudo apt-get update && sudo apt-get install -y python-pip libgnutls28-dev libssl-dev
   - ./test/setup_module_test.sh
-  - if [[ $TRAVIS_PYTHON_VERSION == 2.6 ]]; then pip install --use-mirrors -r requirements-py26.txt ; fi
 
 script:
   - cur_dir=$PWD
-  - export PYTHONPATH=$PWD/test/tmp/shinken
+  - echo "Current directory '$cur_dir' ..."
+  - export PYTHONPATH=$PYTHONPATH:$PWD
+  - export PYTHONPATH=$PYTHONPATH:$PWD/test/tmp/shinken # we also need shinken test/modules...
+  - export PYTHONPATH=$PYTHONPATH:$PWD/test/tmp/shinken/test # we also need shinken test/modules...
+  - export PYTHONPATH=$PYTHONPATH:$PWD/test/tmp/shinken/test/modules/livestatus # we also need mock_livestatus from mod-livestatus..
+  - echo "Python path '$PYTHONPATH' ..."
   - cd test/tmp/shinken/test
-  - nosetests -vx --process-restartworker  --processes=1 --process-timeout=1800 "$cur_dir/test"
-  - coverage combine
+  - pytest -vv --durations=0 --no-print-logs --cov="$cur_dir"/module --cov-config "$cur_dir"/test/.coveragerc "$cur_dir"/test/test_*.py
+
+  # Static code analysis
+  - cd "$cur_dir"
+  # -- pycodestyle (former pep8)
+  - pycodestyle --max-line-length=120 --ignore=E402,W503 --exclude='*.pyc' module
+  # -- pylint
+  - pylint --rcfile=.pylintrc -r no module
+  # -- pep257
+  # - pep257 --select=D300 alignak
 
 after_success:
-  coveralls
+  - bash <(curl -s https://codecov.io/bash) -e tests_mod_livestatus -c -F tests_mod_livestatus
 
 notifications:
   email: false

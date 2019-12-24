@@ -3,14 +3,14 @@
 set -e
 set -xv
 
+# Python version
 py_version_short=$(python -c "import sys; print(''.join(str(x) for x in sys.version_info[:2]))")
-# -> 26 or 27 or 34 or ..
+# -> 27 or 34 or ..
+echo "Python version: $py_version_short"
 
 get_name (){
     echo $(python -c 'import json; print json.load(open("'$1'package.json"))["name"]')
 }
-
-SHI_DST=test/tmp/shinken
 
 setup_submodule (){
     local dep
@@ -32,12 +32,13 @@ setup_submodule (){
 
 name=$(get_name)
 
-pip install pycurl
-pip install coveralls
-
+#pip install pycurl
+#pip install coveralls
+#
 rm -rf test/tmp
 mkdir -p test/tmp/
 
+SHI_DST=test/tmp/shinken
 git clone --depth 10 https://github.com/naparuba/shinken.git "$SHI_DST"
 ( cd "$SHI_DST" && git status && git log -1)
 
@@ -57,21 +58,16 @@ then
     setup_submodule
 fi
 
-if [ -f requirements.txt ]
-then
-    pip install -r requirements.txt
-fi
-if [ -f "$spec_requirement" ]
-then
-    pip install --use-mirrors -r "$spec_requirement"
-fi
+#echo 'Installing application requirements ...'
+#pip install -r requirements.txt
+# echo 'Installing application in development mode ...'
+# pip install -e .
+echo 'Installing tests requirements + application requirements...'
+pip install --upgrade -r test/requirements.txt
 
-test_requirement="test/requirements.txt"
-if [ -f "$test_requirement" ]
+if test -e "test/requirements.py${py_version_short}.txt"
 then
-    pip install --use-mirrors -r "$test_requirement"
+    pip install -r "test/requirements.py${py_version_short}.txt"
 fi
-
-cp -r test/etc "$SHI_DST/test/"
 
 ln -s "$PWD/module" "$SHI_DST/test/modules/$name"

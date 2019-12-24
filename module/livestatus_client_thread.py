@@ -21,21 +21,26 @@ from .livestatus_response import LiveStatusResponse
 
 RECV_SIZE = 8192
 
+
 #############################################################################
 
 class LiveStatusClientError(Exception):
     pass
 
-class Error:
 
+class Error:
     class ClientError(LiveStatusClientError):
         pass
+
     class ClientReadError(LiveStatusClientError):
         pass
+
     class ClientWriteError(LiveStatusClientError):
         pass
+
     class ClientTimeout(LiveStatusClientError):
         pass
+
     class ClientLeft(LiveStatusClientError):
         ''' When we try to read a request from the client but it has closed its connection '''
 
@@ -46,11 +51,13 @@ class Error:
     client_left = ClientLeft('Client closed connection')
     interrupted = Interrupted('interrupted')
 
+
 #############################################################################
 
 class LiveStatusClientThread(threading.Thread):
     ''' A LiveStatus Client Thread will handle a full LS client connection.
     '''
+
     def __init__(self, client_sock, client_address, livestatus_broker):
         '''
         :param client_sock: The socket instance of the client.
@@ -224,7 +231,6 @@ class LiveStatusClientThread(threading.Thread):
             raise Error.Interrupted
         output, _ = query.process_query()
         return output
-
 
     def handle_request(self, request_data):
         response, _ = self.livestatus.handle_request(request_data)

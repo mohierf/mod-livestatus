@@ -42,11 +42,11 @@ from shinken.comment import Comment
 
 # TODO : in some later version, change those import to new package path of these XxxLink classes:
  # from shinken.objects.schedulerlink import SchedulerLink
-from shinken.schedulerlink import SchedulerLink
-from shinken.reactionnerlink import ReactionnerLink
-from shinken.brokerlink import BrokerLink
-from shinken.receiverlink import ReceiverLink
-from shinken.pollerlink import PollerLink
+from shinken.objects.schedulerlink import SchedulerLink
+from shinken.objects.reactionnerlink import ReactionnerLink
+from shinken.objects.brokerlink import BrokerLink
+from shinken.objects.receiverlink import ReceiverLink
+from shinken.objects.pollerlink import PollerLink
 
 from shinken.log import logger
 from log_line import LOGCLASS_INFO, LOGCLASS_ALERT, LOGCLASS_PROGRAM, LOGCLASS_NOTIFICATION, LOGCLASS_PASSIVECHECK, LOGCLASS_COMMAND, LOGCLASS_STATE, LOGCLASS_INVALID, LOGCLASS_ALL, LOGOBJECT_INFO, LOGOBJECT_HOST, LOGOBJECT_SERVICE, LOGOBJECT_CONTACT, Logline, LoglineWrongFormat
@@ -641,7 +641,7 @@ livestatus_attribute_map = {
         'poller_tag': {
             'description': 'Poller Tag',
             'function': lambda item, req: item.poller_tag,
-        },  
+        },
         'process_performance_data': {
             'description': 'Whether processing of performance data is enabled (0/1)',
             'function': lambda item, req: item.process_perf_data,

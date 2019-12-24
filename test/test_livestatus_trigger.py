@@ -25,11 +25,11 @@
 # This file is used to test host- and service-downtimes.
 #
 
+from __future__ import print_function
 
 import os
 import sys
 import re
-import subprocess
 import shutil
 import time
 import random
@@ -37,7 +37,6 @@ import copy
 
 
 from shinken_modules import ShinkenModulesTest
-from shinken.comment import Comment
 
 from shinken_test import time_hacker, unittest
 
@@ -59,21 +58,16 @@ class TestConfig(ShinkenModulesTest):
                 return True
         return False
 
-
     def update_broker(self, dodeepcopy=False):
-        # The brok should be manage in the good order
-        ids = self.sched.brokers['Default-Broker']['broks'].keys()
-        ids.sort()
-        for brok_id in ids:
-            brok = self.sched.brokers['Default-Broker']['broks'][brok_id]
-            #print "Managing a brok type", brok.type, "of id", brok_id
-            #if brok.type == 'update_service_status':
-            #    print "Problem?", brok.data['is_problem']
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
             if dodeepcopy:
                 brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
             self.livestatus_broker.manage_brok(brok)
-        self.sched.broks = {}
-
+        self.sched.brokers['Default-Broker']['broks'] = []
 
     def lines_equal(self, text1, text2):
         # gets two multiline strings and compares the contents
@@ -112,17 +106,14 @@ class TestConfig(ShinkenModulesTest):
             return cmp(data1, data2) == 0
 
     def show_broks(self, title):
-        print
-        print "--- ", title
-        for brok in sorted(self.sched.broks.values(), lambda x, y: x.id - y.id):
+        print("--- %s" % title)
+        for brok in self.sched.broks:
             if re.compile('^service_').match(brok.type):
-                print "BROK:", brok.type
-                print "BROK   ", brok.data['in_checking']
+                print("BROK: %s, in checking: %s", brok.type, brok.data['in_checking'])
         self.update_broker()
         request = 'GET services\nColumns: service_description is_executing\n'
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print response
-
+        print(response)
 
     # shinkenize_nagios_config('nagios_1r_1h_1s')
     # We assume that there is a nagios_1r_1h_1s.cfg and a nagios_1r_1h_1s directory for the objects
@@ -186,16 +177,14 @@ class TestConfig(ShinkenModulesTest):
 class TestConfigSmall(TestConfig):
     def setUp(self):
         self.setup_with_file('etc/shinken_1r_1h_1s.cfg')
-        Comment.id = 1
         self.testid = str(os.getpid() + random.randint(1, 1000))
         self.init_livestatus()
-        print "Cleaning old broks?"
+
         self.sched.conf.skip_initial_broks = False
-        self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
+        self.sched.brokers['Default-Broker'] = {'broks': [], 'has_full_broks': False}
         self.sched.fill_initial_broks('Default-Broker')
-
-
         self.update_broker()
+
         self.nagios_path = None
         self.livestatus_path = None
         self.nagios_config = None
@@ -217,7 +206,7 @@ class TestConfigSmall(TestConfig):
 
     def test_host_wait(self):
         self.print_header()
-        now = time.time()
+
         host = self.sched.hosts.find_by_name("test_host_0")
         host.checks_in_progress = []
         host.act_depend_of = []  # ignore the router
@@ -229,9 +218,9 @@ class TestConfigSmall(TestConfig):
         svc.act_depend_of = []  # no hostchecks on critical checkresults
         self.scheduler_loop(2, [[host, 0, 'UP'], [router, 0, 'UP'], [svc, 2, 'BAD']])
         self.update_broker(True)
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
-        print "i updated the broker at", time.time()
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
+        print("i updated the broker at %s" % time.time())
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
 
         #---------------------------------------------------------------
         # get only the host names and addresses
@@ -243,12 +232,12 @@ ColumnHeaders: on
 Filter: host_name = test_host_0
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print response
+        print(response)
         good_response = """name;state;address
 test_host_0;0;127.0.0.1
 """
-        self.assert_(isinstance(response, str))
-        self.assert_(self.lines_equal(response, good_response))
+        self.assertTrue(isinstance(response, str))
+        self.assertTrue(self.lines_equal(response, good_response))
 
         request = """
 GET hosts
@@ -257,13 +246,13 @@ ColumnHeaders: on
 Filter: host_name = test_host_0
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print response
+        print(response)
 
         time.sleep(1)
         now = time.time()
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
-        print "i query with trigger at", now
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
+        print("i query with trigger at %s" % now)
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
 
         request = """
 COMMAND [%d] SCHEDULE_FORCED_HOST_CHECK;test_host_0;%d
@@ -283,17 +272,17 @@ ColumnHeaders: off
 """ % (now, now, now, now)
 
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print "response is", response
-        self.assert_(isinstance(response, list))
-        self.assert_('wait' in [q.my_type for q in response])
-        self.assert_('query' in [q.my_type for q in response])
+        print("response is %s" % response)
+        self.assertTrue(isinstance(response, list))
+        self.assertTrue('wait' in [q.my_type for q in response])
+        self.assertTrue('query' in [q.my_type for q in response])
 
         # launch the query, which must return an empty result
         query = [q for q in response if q.my_type == "query"][0]
         wait = [q for q in response if q.my_type == "wait"][0]
         result = wait.condition_fulfilled()
         # not yet...the plugin must run first
-        self.assert_(not result)
+        self.assertTrue(not result)
         # result = query.launch_query()
         # response = query.response
         # response.format_live_data(result, query.columns, query.aliases)
@@ -303,8 +292,8 @@ ColumnHeaders: off
         time.sleep(1)
         result = wait.condition_fulfilled()
         # not yet...the plugin must run first
-        print "must be empty", result
-        self.assert_(not result)
+        print("must be empty: %s" % result)
+        self.assertTrue(not result)
 
         # update the broker
         # wait....launch the wait
@@ -315,17 +304,17 @@ ColumnHeaders: off
         time.sleep(1)
         result = wait.condition_fulfilled()
         # the plugin has run
-        print "must not be empty", result
-        self.assert_(result)
+        print("must not be empty: %s" % result)
+        self.assertTrue(result)
 
         result = query.launch_query()
         response = query.response
         response.columnheaders = "on"
-        print response
+        print(response)
         response.format_live_data(result, query.columns, query.aliases)
         output, keepalive = response.respond()
         output = ''.join(output)
-        self.assert_(output.strip())
+        self.assertTrue(output.strip())
 
     def test_multiple_externals(self):
         self.print_header()
@@ -341,9 +330,9 @@ ColumnHeaders: off
         svc.act_depend_of = []  # no hostchecks on critical checkresults
         self.scheduler_loop(2, [[host, 0, 'UP'], [router, 0, 'UP'], [svc, 2, 'BAD']])
         self.update_broker(True)
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
-        print "i updated the broker at", time.time()
-        print ".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#."
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
+        print("i updated the broker at %s" % time.time())
+        print(".#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.")
 
         #---------------------------------------------------------------
         # get only the host names and addresses
@@ -358,17 +347,7 @@ COMMAND [1303425876] SCHEDULE_FORCED_HOST_CHECK;test_host_0;1303425870
 
 """
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print response
+        print(response)
         good_response = ""
-        self.assert_(isinstance(response, str))
-        self.assert_(self.lines_equal(response, good_response))
-
-
-
-
-
-if __name__ == '__main__':
-    # import cProfile
-    command = """unittest.main()"""
-    unittest.main()
-    # cProfile.runctx( command, globals(), locals(), filename="/tmp/livestatus.profile" )
+        self.assertTrue(isinstance(response, str))
+        self.assertTrue(self.lines_equal(response, good_response))

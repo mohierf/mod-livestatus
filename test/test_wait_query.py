@@ -74,7 +74,7 @@ class TestFull_WaitQuery(TestConfig):
 
     def init_livestatus(self, conf):
         super(TestFull_WaitQuery, self).init_livestatus(conf)
-        self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
+        self.sched.brokers['Default-Broker'] = {'broks': [], 'has_full_broks': False}
         self.sched.fill_initial_broks('Default-Broker')
         self.update_broker()
         # execute the livestatus by starting a dedicated thread to run the manage_lql_thread function:
