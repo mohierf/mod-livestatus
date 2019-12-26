@@ -24,7 +24,6 @@
 
 import time
 import traceback
-import cStringIO
 
 from shinken.log import logger
 
@@ -75,6 +74,7 @@ class LiveStatus(object):
         except LiveStatusQueryError as err:
             # LiveStatusQueryError(404, table)
             # LiveStatusQueryError(450, column)
+            # pylint: disable=unbalanced-tuple-unpacking
             code, output = err.args
         except Exception as err:
             logger.error("[Livestatus] Unexpected error during process of request %r : %s",
@@ -122,21 +122,19 @@ class LiveStatus(object):
             output = ''
             cur_idx += 1
 
+        # pylint: disable=undefined-loop-variable
         if 'wait' in queries_type:
             keepalive = True
             # we return  'wait' first and 'query' second..
             output = list(reversed(queries[cur_idx:]))
-        elif len(queries[cur_idx:]):
+        elif queries[cur_idx:]:
             # last possibility :
-            assert (
-                1 == len(queries[cur_idx:])
-                and query == queries[cur_idx] and query.my_type == 'query'
-            )
+            assert (len(queries[cur_idx:]) == 1 and query == queries[cur_idx] and query.my_type == 'query')
             output, keepalive = query.process_query()
         else:
             output = ''  # no command, query, or anything could be parsed from the input data.
 
-        logger.debug("[Livestatus] Request duration %.4fs" % (time.time() - request.tic))
+        logger.debug("[Livestatus] Request duration %.4fs", time.time() - request.tic)
         return output, keepalive
 
     def count_event(self, counter):

@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# todo: deprecated-lambda!
+# pylint: disable=pointless-string-statement, deprecated-lambda
 
 # Copyright (C) 2009-2012:
 #    Gabes Jean, naparuba@gmail.com
@@ -28,9 +30,6 @@ from counter import Counter
 from livestatus_stack import LiveStatusStack
 from shinken.log import logger
 
-
-def has_not_more_than(list1, list2):
-    return len(set(list1).difference(set(list2))) == 0
 
 """
 There are several categories for queries. Their main difference is the kind
@@ -90,6 +89,10 @@ HINT_SERVICES_BY_HOSTGROUP = 8
 HINT_SERVICES_BY_GROUP = 9
 
 
+def has_not_more_than(list1, list2):
+    return len(set(list1).difference(set(list2))) == 0
+
+
 class LiveStatusQueryMetainfoFilterStack(LiveStatusStack):
     """
     This is a filterstack which produces a text representation of
@@ -128,8 +131,8 @@ class LiveStatusQueryMetainfoFilterStack(LiveStatusStack):
         """Return the top element from the stack or a filter which is always true"""
         if self.qsize() == 0:
             return ''
-        else:
-            return self.get()
+
+        return self.get()
 
 
 class LiveStatusQueryMetainfo(object):
@@ -194,7 +197,7 @@ class LiveStatusQueryMetainfo(object):
             line = line.strip()
             # Tools like NagVis send KEYWORK:option, and we prefer to have
             # a space following the:
-            if ':' in line and not ' ' in line:
+            if ':' in line and ' ' not in line:
                 line = line.replace(':', ': ')
             keyword = line.split(' ')[0].rstrip(':')
             if keyword == 'GET':
@@ -273,7 +276,7 @@ class LiveStatusQueryMetainfo(object):
                 _, self.client_localtime = self.split_option(line)
                 # NO # self.structured_data.append((keyword, client_localtime))
             else:
-                logger.warning("[Livestatus Query Metainfo] Received a line of input which i can't handle: '%s'" % line)
+                logger.warning("[Livestatus Query Metainfo] Received a line of input which i can't handle: '%s'", line)
                 self.structured_data.append((keyword, 'Received a line of input which i can\'t handle: %s' % line))
             self.keyword_counter[keyword] += 1
         self.metainfo_filter_stack.and_elements(self.metainfo_filter_stack.qsize())
@@ -296,11 +299,11 @@ class LiveStatusQueryMetainfo(object):
     def strip_table_from_column(self, column):
         """Cut off the table name, because it is possible
         to say service_state instead of state"""
-        bygroupmatch = re.compile('(\w+)by.*group').search(self.table)
-        if bygroupmatch:
-            return re.sub(re.sub('s$', '', bygroupmatch.group(1)) + '_', '', column, 1)
-        else:
-            return re.sub(re.sub('s$', '', self.table) + '_', '', column, 1)
+        by_group_match = re.compile(r'''(\w+)by.*group''').search(self.table)
+        if by_group_match:
+            return re.sub(re.sub(r's$', '', by_group_match.group(1)) + '_', '', column, 1)
+
+        return re.sub(re.sub(r's$', '', self.table) + '_', '', column, 1)
 
     def is_a_closed_chapter(self):
         """
@@ -309,12 +312,18 @@ class LiveStatusQueryMetainfo(object):
         caching. A precondition is, that only attributes are involved, which
         can not change over time. (ex. current_host_num_critical_services)
         """
-        logline_elements = ['attempt', 'class', 'command_name', 'comment', 'contact_name', 'host_name', 'message', 'options', 'plugin_output', 'service_description', 'state', 'state_type', 'time', 'type']
+        logline_elements = ['attempt', 'class', 'command_name', 'comment', 'contact_name', 'host_name',
+                            'message', 'options', 'plugin_output', 'service_description',
+                            'state', 'state_type', 'time', 'type']
         logline_elements.extend(['current_host_groups', 'current_service_groups'])
         if self.table == 'log':
-            limits = sorted([(f[2], int(f[3])) for f in self.structured_data if f[0] == 'Filter' and f[1] == 'time'], key=lambda x: x[1])
+            limits = sorted([(f[2], int(f[3])) for f in self.structured_data
+                             if f[0] == 'Filter' and f[1] == 'time'], key=lambda x: x[1])
 
-            if len(limits) == 2 and limits[1][1] <= int(time.time()) and limits[0][0].startswith('>') and limits[1][0].startswith('<'):
+            if len(limits) == 2 \
+                    and limits[1][1] <= int(time.time()) \
+                    and limits[0][0].startswith('>') \
+                    and limits[1][0].startswith('<'):
                 if has_not_more_than(self.columns, logline_elements):
                     return True
         return False
@@ -325,32 +334,41 @@ class LiveStatusQueryMetainfo(object):
         filters, stats or not,...) and find a suitable cache_category.
         """
         # self.table, self.structured_data
-        if self.table == 'status' and has_not_more_than(self.columns, ['livestatus_version', 'program_version', 'program_start']):
+        if self.table == 'status' \
+                and has_not_more_than(self.columns, ['livestatus_version', 'program_version', 'program_start']):
             self.cache_category = CACHE_PROGRAM_STATIC
-        elif not self.keyword_counter['Filter'] and self.table == 'host' and has_not_more_than(self.columns, ['name', 'custom_variable_names', 'custom_variable_values', 'services']):
+        elif not self.keyword_counter['Filter'] \
+                and self.table == 'host' \
+                and has_not_more_than(self.columns, ['name', 'custom_variable_names',
+                                                     'custom_variable_values', 'services']):
             self.cache_category = CACHE_GLOBAL_STATS
-        elif self.table == 'log' and self.is_stats and has_not_more_than(self.stats_columns, ['state']):
+        elif self.table == 'log' \
+                and self.is_stats \
+                and has_not_more_than(self.stats_columns, ['state']):
             # and only 1 timefilter which is >=
             self.cache_category = CACHE_GLOBAL_STATS
-        elif self.table == 'services' and self.is_stats and has_not_more_than(self.stats_columns, ['state']):
+        elif self.table == 'services' \
+                and self.is_stats \
+                and has_not_more_than(self.stats_columns, ['state']):
             # and only 1 timefilter which is >=
             self.cache_category = CACHE_GLOBAL_STATS
         elif self.is_a_closed_chapter():
             self.cache_category = CACHE_IRREVERSIBLE_HISTORY
-        elif self.table == 'services' and not self.is_stats and has_not_more_than(self.columns, ['host_name', 'description', 'state', 'state_type']):
+        elif self.table == 'services' \
+                and not self.is_stats \
+                and has_not_more_than(self.columns, ['host_name', 'description', 'state', 'state_type']):
             self.cache_category = CACHE_SERVICE_STATS
         else:
-            pass
-            logger.debug("[Livestatus Query Metainfo] I cannot cache this %s" % str(self))
+            logger.debug("[Livestatus Query Metainfo] I cannot cache this %s", str(self))
 
         # Initial implementation only respects the = operator (~ may be an option in the future)
-        all_filters = sorted([str(f[1]) for f in self.structured_data if (f[0] == 'Filter')])
+        # all_filters = sorted([str(f[1]) for f in self.structured_data if (f[0] == 'Filter')])
         eq_filters = sorted([str(f[1]) for f in self.structured_data if (f[0] == 'Filter' and f[2] == '=')])
         unique_eq_filters = sorted({}.fromkeys(eq_filters).keys())
         ge_contains_filters = sorted([str(f[1]) for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')])
         unique_ge_contains_filters = sorted({}.fromkeys(ge_contains_filters).keys())
-        logger.debug("[Livestatus Query Metainfo] ge_contains_filters: %s" % str(ge_contains_filters))
-        logger.debug("[Livestatus Query Metainfo] unique_ge_contains_filters: %s" % str(unique_ge_contains_filters))
+        logger.debug("[Livestatus Query Metainfo] ge_contains_filters: %s", str(ge_contains_filters))
+        logger.debug("[Livestatus Query Metainfo] unique_ge_contains_filters: %s", str(unique_ge_contains_filters))
         if [f for f in self.structured_data if f[0] == 'Negate']:
             # HANDS OFF!!!!
             # This might be something like:
@@ -361,11 +379,13 @@ class LiveStatusQueryMetainfo(object):
         elif self.table == 'hosts' or self.table == 'hostsbygroup':
             # Do we have exactly 1 Filter, which is 'name'?
             if eq_filters == ['name']:
-                if len(eq_filters) == len([f for f in self.structured_data if (f[0] == 'Filter' and f[1] == 'name')]):
+                if len(eq_filters) == len([f for f in self.structured_data
+                                           if (f[0] == 'Filter' and f[1] == 'name')]):
                     self.query_hints['target'] = HINT_HOST
-                    self.query_hints['host_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '=')][0]
+                    self.query_hints['host_name'] = [f[3] for f in self.structured_data
+                                                     if (f[0] == 'Filter' and f[2] == '=')][0]
                 # this helps: thruk_host_detail, thruk_host_status_detail, thruk_service_detail, nagvis_host_icon
-            elif unique_eq_filters ==  ['name']:
+            elif unique_eq_filters == ['name']:
                 # we want a lot of services selected by
                 # Filter: host_name
                 # Filter: host_name
@@ -376,18 +396,22 @@ class LiveStatusQueryMetainfo(object):
                 try:
                     num_hosts = 0
                     for i, _ in enumerate(self.structured_data):
-                        if self.structured_data[i][0] == 'Filter' and self.structured_data[i][1] == 'name':
-                            if self.structured_data[i+1][0] == 'Filter' and self.structured_data[i+1][1] == 'name':
+                        if self.structured_data[i][0] == 'Filter' and \
+                                self.structured_data[i][1] == 'name':
+                            if self.structured_data[i + 1][0] == 'Filter' and \
+                                    self.structured_data[i + 1][1] == 'name':
                                 num_hosts += 1
                                 hosts.append(self.structured_data[i][3])
-                            elif self.structured_data[i+1][0] == 'Or' and self.structured_data[i+1][1] == num_hosts + 1:
+                            elif self.structured_data[i + 1][0] == 'Or' and \
+                                    self.structured_data[i + 1][1] == num_hosts + 1:
                                 num_hosts += 1
                                 hosts.append(self.structured_data[i][3])
                                 only_hosts = True
                             else:
                                 only_hosts = False
-                except Exception, exp:
+                except Exception:
                     only_hosts = False
+
                 if only_hosts:
                     if len(hosts) == len(filter(lambda x: x[0] == 'Filter' and x[1] == 'name', self.structured_data)):
                         hosts = list(set(hosts))
@@ -397,25 +421,33 @@ class LiveStatusQueryMetainfo(object):
                 # this helps: nagvis host icons
             elif ge_contains_filters == ['groups']:
                 # we want the all the hosts in a hostgroup
-                if len(ge_contains_filters) == len([f for f in self.structured_data if (f[0] == 'Filter' and (f[1] == 'groups' or f[1] == 'name'))]):
+                if len(ge_contains_filters) == len([f for f in self.structured_data
+                                                    if (f[0] == 'Filter' and (f[1] == 'groups' or f[1] == 'name'))]):
                     self.query_hints['target'] = HINT_HOSTS_BY_GROUP
-                    self.query_hints['hostgroup_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')][0]
+                    self.query_hints['hostgroup_name'] = [f[3] for f in self.structured_data
+                                                          if (f[0] == 'Filter' and f[2] == '>=')][0]
                 # this helps: nagvis hostgroup
         elif self.table == 'services' or self.table == 'servicesbygroup' or self.table == 'servicesbyhostgroup':
             if eq_filters == ['host_name']:
                 # Do we have exactly 1 Filter, which is 'host_name'?
                 # In this case, we want the services of this single host
-                if len(eq_filters) == len([f for f in self.structured_data if (f[0] == 'Filter' and f[1] == 'host_name')]):
+                if len(eq_filters) == len([f for f in self.structured_data
+                                           if (f[0] == 'Filter' and f[1] == 'host_name')]):
                     self.query_hints['target'] = HINT_SERVICES_BY_HOST
-                    self.query_hints['host_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '=')][0]
+                    self.query_hints['host_name'] = [f[3] for f in self.structured_data
+                                                     if (f[0] == 'Filter' and f[2] == '=')][0]
                 # this helps: multisite_host_detail
             elif eq_filters == ['description', 'host_name']:
                 # We want one specific service
                 self.query_hints['target'] = HINT_SERVICE
-                self.query_hints['host_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[1] == 'host_name' and f[2] == '=')][0]
-                self.query_hints['service_description'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[1] == 'description' and f[2] == '=')][0]
+                self.query_hints['host_name'] = [
+                    f[3] for f in self.structured_data
+                    if (f[0] == 'Filter' and f[1] == 'host_name' and f[2] == '=')][0]
+                self.query_hints['service_description'] = [
+                    f[3] for f in self.structured_data
+                    if (f[0] == 'Filter' and f[1] == 'description' and f[2] == '=')][0]
                 # this helps: multisite_service_detail, thruk_service_detail, nagvis_service_icon
-            elif unique_eq_filters ==  ['host_name']:
+            elif unique_eq_filters == ['host_name']:
                 # we want a lot of services selected by
                 # Filter: host_name
                 # Filter: host_name
@@ -426,26 +458,31 @@ class LiveStatusQueryMetainfo(object):
                 try:
                     num_hosts = 0
                     for i, _ in enumerate(self.structured_data):
-                        if self.structured_data[i][0] == 'Filter' and self.structured_data[i][1] == 'host_name':
-                            if self.structured_data[i+1][0] == 'Filter' and self.structured_data[i+1][1] == 'host_name':
+                        if self.structured_data[i][0] == 'Filter' \
+                                and self.structured_data[i][1] == 'host_name':
+                            if self.structured_data[i + 1][0] == 'Filter' \
+                                    and self.structured_data[i + 1][1] == 'host_name':
                                 num_hosts += 1
                                 hosts.append(self.structured_data[i][3])
-                            elif self.structured_data[i+1][0] == 'Or' and self.structured_data[i+1][1] == num_hosts + 1:
+                            elif self.structured_data[i + 1][0] == 'Or' \
+                                    and self.structured_data[i + 1][1] == num_hosts + 1:
                                 num_hosts += 1
                                 hosts.append(self.structured_data[i][3])
                                 only_hosts = True
                             else:
                                 only_hosts = False
-                except Exception, exp:
+                except Exception:
                     only_hosts = False
+
                 if only_hosts:
-                    if len(hosts) == len(filter(lambda x: x[0] == 'Filter' and x[1] == 'host_name', self.structured_data)):
+                    if len(hosts) == len(
+                            filter(lambda x: x[0] == 'Filter' and x[1] == 'host_name', self.structured_data)):
                         hosts = list(set(hosts))
                         hosts.sort()
                         self.query_hints['target'] = HINT_SERVICES_BY_HOSTS
                         self.query_hints['host_name'] = hosts
                 # this helps: nagvis host icons
-            elif unique_eq_filters ==  ['description', 'host_name']:
+            elif unique_eq_filters == ['description', 'host_name']:
                 # we want a lot of services selected by
                 # Filter: host_name
                 # Filter: service_description
@@ -455,18 +492,25 @@ class LiveStatusQueryMetainfo(object):
                 try:
                     for i, _ in enumerate(self.structured_data):
                         if self.structured_data[i][0] == 'Filter' and self.structured_data[i][1] == 'host_name':
-                            if self.structured_data[i+1][0] == 'Filter' and self.structured_data[i+1][1] == 'description' and self.structured_data[i+2][0] == 'And' and self.structured_data[i+2][1] == 2:
-                                services.append((self.structured_data[i][3], self.structured_data[i+1][3]))
-                            elif self.structured_data[i-1][0] == 'Filter' and self.structured_data[i-1][1] == 'description' and self.structured_data[i+1][0] == 'And' and self.structured_data[i+1][1] == 2:
-                                services.append((self.structured_data[i][3], self.structured_data[i-1][3]))
+                            if self.structured_data[i + 1][0] == 'Filter' \
+                                    and self.structured_data[i + 1][1] == 'description' \
+                                    and self.structured_data[i + 2][0] == 'And' \
+                                    and self.structured_data[i + 2][1] == 2:
+                                services.append((self.structured_data[i][3], self.structured_data[i + 1][3]))
+                            elif self.structured_data[i - 1][0] == 'Filter' \
+                                    and self.structured_data[i - 1][1] == 'description' \
+                                    and self.structured_data[i + 1][0] == 'And' \
+                                    and self.structured_data[i + 1][1] == 2:
+                                services.append((self.structured_data[i][3], self.structured_data[i - 1][3]))
                             else:
                                 only_services = False
                                 break
-                except Exception, exp:
+                except Exception:
                     only_services = False
+
                 if only_services:
-                    if len(services) == len(filter(lambda x: x[0] == 'Filter' and x[1] == 'description', self.structured_data)):
-#len([None for stmt in self.structured_data if stmt[0] == 'Filter' and stmt[1] == 'description']):
+                    if len(services) == len(
+                            filter(lambda x: x[0] == 'Filter' and x[1] == 'description', self.structured_data)):
                         services = set(services)
                         hosts = set([svc[0] for svc in services])
                         # num_hosts < num_services / 2
@@ -479,18 +523,23 @@ class LiveStatusQueryMetainfo(object):
                             self.query_hints['host_names_service_descriptions'] = services
             elif ge_contains_filters == ['groups']:
                 # we want the all the services in a servicegroup
-                logger.debug("[Livestatus Query Metainfo] structure_date: %s" % str(self.structured_data))
-                if len(ge_contains_filters) == len([f for f in self.structured_data if (f[0] == 'Filter' and (f[1] == 'groups' or f[1] == 'description'))]):
+                logger.debug("[Livestatus Query Metainfo] structure_date: %s", str(self.structured_data))
+                if len(ge_contains_filters) == len([f for f in self.structured_data
+                                                    if (f[0] == 'Filter' and (f[1] == 'groups'
+                                                                              or f[1] == 'description'))]):
                     self.query_hints['target'] = HINT_SERVICES_BY_GROUP
-                    self.query_hints['servicegroup_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')][0]
+                    self.query_hints['servicegroup_name'] = [
+                        f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')][0]
                 # this helps: nagvis servicegroup
             elif ge_contains_filters == ['host_groups']:
                 # we want the services of all the hosts in a hostgroup
-                pass
+                # fixme: why is there a pass here ?????????????
+                # pass
                 # Do we have exactly 1 Filter, which is 'host_name'?
                 # In this case, we want the services of this single host
-                if len(ge_contains_filters) == len([f for f in self.structured_data if (f[0] == 'Filter' and f[1].startswith('host'))]):
+                if len(ge_contains_filters) == len([f for f in self.structured_data
+                                                    if (f[0] == 'Filter' and f[1].startswith('host'))]):
                     self.query_hints['target'] = HINT_SERVICES_BY_HOSTGROUP
-                    self.query_hints['hostgroup_name'] = [f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')][0]
+                    self.query_hints['hostgroup_name'] = [
+                        f[3] for f in self.structured_data if (f[0] == 'Filter' and f[2] == '>=')][0]
                 # this helps: nagvis hostgroup
-

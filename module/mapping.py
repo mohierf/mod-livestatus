@@ -40,19 +40,20 @@ from shinken.objects.config import Config
 from shinken.downtime import Downtime
 from shinken.comment import Comment
 
-# TODO : in some later version, change those import to new package path of these XxxLink classes:
- # from shinken.objects.schedulerlink import SchedulerLink
 from shinken.objects.schedulerlink import SchedulerLink
 from shinken.objects.reactionnerlink import ReactionnerLink
 from shinken.objects.brokerlink import BrokerLink
-from shinken.objects.receiverlink import ReceiverLink
+# todo: use it?
+# from shinken.objects.receiverlink import ReceiverLink
 from shinken.objects.pollerlink import PollerLink
 
 from shinken.log import logger
-from log_line import LOGCLASS_INFO, LOGCLASS_ALERT, LOGCLASS_PROGRAM, LOGCLASS_NOTIFICATION, LOGCLASS_PASSIVECHECK, LOGCLASS_COMMAND, LOGCLASS_STATE, LOGCLASS_INVALID, LOGCLASS_ALL, LOGOBJECT_INFO, LOGOBJECT_HOST, LOGOBJECT_SERVICE, LOGOBJECT_CONTACT, Logline, LoglineWrongFormat
 from shinken.misc.common import DICT_MODATTR
 
-class Problem:
+from log_line import Logline
+
+
+class Problem(object):
     def __init__(self, source, impacts):
         self.source = source
         self.impacts = impacts
@@ -71,18 +72,17 @@ def join_with_separators(request, *args):
     if request.response.outputformat == 'csv':
         try:
             return request.response.separators.pipe.join([str(arg) for arg in args])
-        except Exception, e:
-            logger.error("[Livestatus Broker Mapping] Bang Error: %s" % e)
+        except Exception as exp:
+            logger.error("[Livestatus Broker Mapping] Bang Error: %s", exp)
     elif request.response.outputformat == 'json' or request.response.outputformat == 'python':
         return args
-    else:
-        return None
-    pass
+
+    return None
 
 
 def worst_host_state(state_1, state_2):
     """Return the worst of two host states."""
-    #lambda x: reduce(lambda g, c: c if g == 0 else (c if c == 1 else g), (y.state_id for y in x), 0),
+    # lambda x: reduce(lambda g, c: c if g == 0 else (c if c == 1 else g), (y.state_id for y in x), 0),
     if state_2 == 0:
         return state_1
     if state_1 == 1:
@@ -92,7 +92,8 @@ def worst_host_state(state_1, state_2):
 
 def worst_service_state(state_1, state_2):
     """Return the worst of two service states."""
-    #reduce(lambda g, c: c if g == 0 else (c if c == 2 else (c if (c == 3 and g != 2) else g)), (z.state_id for y in x for z in y.services if z.state_type_id == 1), 0),
+    # reduce(lambda g, c: c if g == 0 else (c if c == 2 else (c if (c == 3 and g != 2)
+    # else g)), (z.state_id for y in x for z in y.services if z.state_type_id == 1), 0),
     if state_2 == 0:
         return state_1
     if state_1 == 2:
@@ -124,13 +125,13 @@ def find_pnp_perfdata_xml(name, request):
 
 def from_svc_hst_distinct_lists(dct):
     """Transform a dict with keys hosts and services to a list."""
-    t = []
+    the_list = []
     for item in dct:
         try:
-            t.append(item.get_full_name())
+            the_list.append(item.get_full_name())
         except Exception:
-            t.append(item.get_name())
-    return t
+            the_list.append(item.get_name())
+    return the_list
 
 
 def get_livestatus_full_name(item, req):
@@ -147,14 +148,14 @@ def get_livestatus_full_name(item, req):
     if req.response.outputformat == 'csv':
         if cls_name == 'service':
             return item.host_name + req.response.separators.pipe + item.service_description
-        else:
-            return item.host_name
+
+        return item.host_name
     elif req.response.outputformat == 'json' or req.response.outputformat == 'python':
         if cls_name == 'service':
             return [item.host_name, item.service_description]
-        else:
-            return item.host_name
-        pass
+
+        return item.host_name
+    return ''
 
 # description (optional): no need to explain this
 # prop (optional): the property of the object. If this is missing, the key is the property
@@ -169,6 +170,7 @@ def get_livestatus_full_name(item, req):
 # repr: the datatype returned by the lambda (bool, int, string, list)
 #       this is needed for filters. lsl query attributes are converted to this datatype
 #       later, the repr datatype needs to be converted to a string
+
 
 livestatus_attribute_map = {
     'Host': {
@@ -193,7 +195,8 @@ livestatus_attribute_map = {
         },
         'action_url_expanded': {
             'description': 'The same as action_url, but with the most important macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.action_url, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.action_url,
+                                                                                          item.get_data_for_checks()),
         },
         'active_checks_enabled': {
             'description': 'Whether active checks are enabled for the host (0/1)',
@@ -238,7 +241,8 @@ livestatus_attribute_map = {
             'datatype': int,
         },
         'check_period': {
-            'description': 'Time period in which this host will be checked. If empty then the host will always be checked.',
+            'description': 'Time period in which this host will be checked. '
+                           'If empty then the host will always be checked.',
             'function': lambda item, req: item.check_period.get_name(),
         },
         'check_type': {
@@ -268,7 +272,10 @@ livestatus_attribute_map = {
         },
         'comments_with_info': {
             'description': 'A list of the ids of all comments of this host with id, author and comment',
-            'function': lambda item, req: [join_with_separators(req, str(x.id), x.author, x.comment) for x in item.comments],  # REPAIRME MAYBE
+            'function': lambda item, req: [join_with_separators(req,
+                                                                str(x.id),
+                                                                x.author,
+                                                                x.comment) for x in item.comments],
             'datatype': list,
         },
         'contacts': {
@@ -322,7 +329,10 @@ livestatus_attribute_map = {
         },
         'downtimes_with_info': {
             'description': 'A list of the all scheduled downtimes of the host with id, author and comment',
-            'function': lambda item, req: [join_with_separators(req, str(x.id), x.author, x.comment) for x in item.downtimes],  # REPAIRME MAYBE
+            'function': lambda item, req: [join_with_separators(req,
+                                                                str(x.id),
+                                                                x.author,
+                                                                x.comment) for x in item.downtimes],
             'datatype': list,
             # 2|omdadmin|hdodo = id|author|comment
         },
@@ -390,21 +400,25 @@ livestatus_attribute_map = {
         },
         'icon_image_expanded': {
             'description': 'The same as icon_image, but with the most important macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.icon_image, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.icon_image,
+                                                                                          item.get_data_for_checks()),
         },
         'impacts': {
             'description': 'List of what the source impact (list of hosts and services)',
-            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.impacts],  # REPAIRME MAYBE (separators in python and csv)
+            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.impacts],
             'datatype': list,
         },
         'in_check_period': {
             'description': 'Whether this host is currently in its check period (0/1)',
-            'function': lambda item, req: (item.check_period is None and [False] or [item.check_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.check_period is None and [False]
+                                           or [item.check_period.is_time_valid(req.tic)])[0],
             'datatype': bool,
         },
         'in_notification_period': {
             'description': 'Whether this host is currently in its notification period (0/1)',
-            'function': lambda item, req: (item.notification_period is None and [False] or [item.notification_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.notification_period is None and [False]
+
+                                           or [item.notification_period.is_time_valid(req.tic)])[0],
             'datatype': bool,
         },
         'initial_state': {
@@ -503,12 +517,12 @@ livestatus_attribute_map = {
         },
         'modified_attributes': {
             'description': 'A bitmask specifying which attributes have been modified',
-            'function': lambda item, req: item.modified_attributes,  # CONTROLME
+            'function': lambda item, req: item.modified_attributes,
             'datatype': int,
         },
         'modified_attributes_list': {
             'description': 'A list of all modified attributes',
-            'function': lambda item, req: modified_attributes_names(item),  # CONTROLME
+            'function': lambda item, req: modified_attributes_names(item),
             'datatype': list,
         },
         'name': {
@@ -522,7 +536,9 @@ livestatus_attribute_map = {
         },
         'next_notification': {
             'description': 'Time of the next notification (Unix timestamp)',
-            'function': lambda item, req: int(item.last_notification + item.notification_interval * item.__class__.interval_length),  # CONTROLME
+            'function': lambda item, req: int(item.last_notification
+                                              + item.notification_interval
+                                              * item.__class__.interval_length),
             'datatype': int,
         },
         'notes': {
@@ -531,7 +547,8 @@ livestatus_attribute_map = {
         },
         'notes_expanded': {
             'description': 'The same as notes, but with the most important macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes,
+                                                                                          item.get_data_for_checks()),
         },
         'notes_url': {
             'description': 'An optional URL with further information about the host',
@@ -539,7 +556,8 @@ livestatus_attribute_map = {
         },
         'notes_url_expanded': {
             'description': 'Same es notes_url, but with the most important macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes_url, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes_url,
+                                                                                          item.get_data_for_checks()),
         },
         'notification_interval': {
             'description': 'Interval of periodic notification or 0 if its off',
@@ -547,7 +565,8 @@ livestatus_attribute_map = {
             'datatype': float,
         },
         'notification_period': {
-            'description': 'Time period in which problems of this host will be notified. If empty then notification will be always',
+            'description': 'Time period in which problems of this host will be notified. '
+                           'If empty then notification will be always',
             'function': lambda item, req: item.notification_period.get_name(),
         },
         'notifications_enabled': {
@@ -674,18 +693,20 @@ livestatus_attribute_map = {
         },
         'services_with_state': {
             'description': 'A list of all services of the host together with state and has_been_checked',
-            'function': lambda item, req: [join_with_separators(req, x.get_name(), x.state_id, x.has_been_checked) for x in item.services],
+            'function': lambda item, req: [join_with_separators(req,
+                                                                x.get_name(),
+                                                                x.state_id,
+                                                                x.has_been_checked) for x in item.services],
             'datatype': list,
         },
         'source_problems': {
             'description': 'The name of the source problems (host or service)',
-            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.source_problems],  # REPAIRME MAYBE (separators in python and csv)
+            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.source_problems],
             'datatype': list,
         },
         'state': {
             'description': 'The current state of the host (0: up, 1: down, 2: unreachable)',
             'function': lambda item, req: item.state_id,
-            #'function': i_am_state,
             'datatype': int,
         },
         'state_type': {
@@ -709,7 +730,8 @@ livestatus_attribute_map = {
         },
         'worst_service_hard_state': {
             'description': 'The worst hard state of all of the host\'s services (OK <= WARN <= UNKNOWN <= CRIT)',
-            'function': lambda item, req: reduce(worst_service_state, (x.state_id for x in item.services if x.state_type_id == 1), 0),
+            'function': lambda item, req: reduce(worst_service_state,
+                                                 (x.state_id for x in item.services if x.state_type_id == 1), 0),
             'datatype': int,
         },
         'worst_service_state': {
@@ -755,7 +777,8 @@ livestatus_attribute_map = {
         },
         'action_url_expanded': {
             'description': 'The action_url with (the most important) macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.action_url, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.action_url,
+                                                                                          item.get_data_for_checks()),
         },
         'active_checks_enabled': {
             'description': 'Whether active checks are enabled for the service (0/1)',
@@ -778,11 +801,12 @@ livestatus_attribute_map = {
         },
         'check_options': {
             'description': 'The current check option, forced, normal, freshness... (0/1)',
-            'function': lambda item, req: "",  # REPAIRME
+            'function': lambda item, req: "",
             'datatype': int,
         },
         'check_period': {
-            'description': 'The name of the check period of the service. It this is empty, the service is always checked.',
+            'description': 'The name of the check period of the service. '
+                           'It this is empty, the service is always checked.',
             'function': lambda item, req: item.check_period.get_name(),
         },
         'check_type': {
@@ -807,12 +831,15 @@ livestatus_attribute_map = {
         },
         'comments_with_info': {
             'description': 'A list of the ids of all comments of this service with id, author and comment',
-            'function': lambda item, req: [join_with_separators(req, str(x.id), x.author, x.comment) for x in item.comments],  # REPAIRME MAYBE
+            'function': lambda item, req: [join_with_separators(req,
+                                                                str(x.id),
+                                                                x.author,
+                                                                x.comment) for x in item.comments],
             'datatype': list,
         },
         'contacts': {
             'description': 'A list of all contacts of the service, either direct or via a contact group',
-            'function': lambda item, req: [x.contact_name for x in item.contacts], # CONTROLME c1 is in group cg1, c2 is in no group. svc has cg1,c2. only c2 is shown here
+            'function': lambda item, req: [x.contact_name for x in item.contacts],
             'datatype': list,
         },
         'contact_groups': {
@@ -865,7 +892,10 @@ livestatus_attribute_map = {
         },
         'downtimes_with_info': {
             'description': 'A list of all downtimes of the service with id, author and comment',
-            'function': lambda item, req: [join_with_separators(req, str(x.id), x.author, x.comment) for x in item.downtimes],  # REPAIRME MAYBE
+            'function': lambda item, req: [join_with_separators(req,
+                                                                str(x.id),
+                                                                x.author,
+                                                                x.comment) for x in item.downtimes],
             'datatype': list,
         },
         'event_handler': {
@@ -952,7 +982,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0-2)',
         },
         'host_check_period': {
-            'description': 'Time period in which this host will be checked. If empty then the host will always be checked.',
+            'description': 'Time period in which this host will be checked. '
+                           'If empty then the host will always be checked.',
         },
         'host_check_type': {
             'description': 'Type of check (0: active, 1: passive)',
@@ -1120,7 +1151,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'host_notification_period': {
-            'description': 'Time period in which problems of this host will be notified. If empty then notification will be always',
+            'description': 'Time period in which problems of this host will be notified. '
+                           'If empty then notification will be always',
         },
         'host_notifications_enabled': {
             'description': 'Whether notifications of the host are enabled (0/1)',
@@ -1199,7 +1231,6 @@ livestatus_attribute_map = {
         },
         'host_state': {
             'description': 'The current state of the host (0: up, 1: down, 2: unreachable)',
-            ##'function': lambda item, req: item.host.lsm_state(req),
         },
         'host_state_type': {
             'description': 'Type of the current state (0: soft, 1: hard)',
@@ -1238,21 +1269,24 @@ livestatus_attribute_map = {
         },
         'icon_image_expanded': {
             'description': 'The icon_image with (the most important) macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.icon_image, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.icon_image,
+                                                                                          item.get_data_for_checks()),
         },
         'impacts': {
             'description': 'List of what the source impact (list of hosts and services)',
-            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.impacts],  # REPAIRME MAYBE (separators in python and csv)
+            'function': lambda item, req: [get_livestatus_full_name(i, req) for i in item.impacts],
             'datatype': list,
         },
         'in_check_period': {
             'description': 'Whether the service is currently in its check period (0/1)',
-            'function': lambda item, req: (item.check_period is None and [False] or [item.check_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.check_period is None and [False]
+                                           or [item.check_period.is_time_valid(req.tic)])[0],
             'datatype': int,
         },
         'in_notification_period': {
             'description': 'Whether the service is currently in its notification period (0/1)',
-            'function': lambda item, req: (item.notification_period is None and [False] or [item.notification_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.notification_period is None and [False]
+                                           or [item.notification_period.is_time_valid(req.tic)])[0],
             'datatype': int,
         },
         'initial_state': {
@@ -1285,11 +1319,11 @@ livestatus_attribute_map = {
             'function': lambda item, req: item.labels,
             'datatype': list,
         },
-        'latency': {
-            'description': 'Time difference between scheduled check time and actual check time',
-            'function': lambda item, req: item.latency,  # CONTROLME INSORTME
-            'datatype': float,
-        },
+        # 'latency': {
+        #     'description': 'Time difference between scheduled check time and actual check time',
+        #     'function': lambda item, req: item.latency,  # CONTROLME INSORTME
+        #     'datatype': float,
+        # },
         'last_check': {
             'description': 'The time of the last check (Unix timestamp)',
             'function': lambda item, req: int(item.last_chk),
@@ -1343,7 +1377,7 @@ livestatus_attribute_map = {
         'latency': {
             'description': 'Time difference between scheduled check time and actual check time',
             'function': lambda item, req: int(item.latency),
-            'datatype': int,
+            'datatype': float,
         },
         'long_plugin_output': {
             'description': 'Unabbreviated output of the last check plugin',
@@ -1376,7 +1410,9 @@ livestatus_attribute_map = {
         },
         'next_notification': {
             'description': 'The time of the next notification (Unix timestamp)',
-            'function': lambda item, req: int(item.last_notification + item.notification_interval * item.__class__.interval_length),  # CONTROLME
+            'function': lambda item, req: int(item.last_notification
+                                              + item.notification_interval
+                                              * item.__class__.interval_length),
             'datatype': int,
         },
         'notes': {
@@ -1385,7 +1421,8 @@ livestatus_attribute_map = {
         },
         'notes_expanded': {
             'description': 'The notes with (the most important) macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes,
+                                                                                          item.get_data_for_checks()),
         },
         'notes_url': {
             'description': 'An optional URL for additional notes about the service',
@@ -1393,7 +1430,8 @@ livestatus_attribute_map = {
         },
         'notes_url_expanded': {
             'description': 'The notes_url with (the most important) macros expanded',
-            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes_url, item.get_data_for_checks()),
+            'function': lambda item, req: MacroResolver().resolve_simple_macros_in_string(item.notes_url,
+                                                                                          item.get_data_for_checks()),
         },
         'notification_interval': {
             'description': 'Interval of periodic notification or 0 if its off',
@@ -1401,7 +1439,8 @@ livestatus_attribute_map = {
             'datatype': float,
         },
         'notification_period': {
-            'description': 'The name of the notification period of the service. It this is empty, service problems are always notified.',
+            'description': 'The name of the notification period of the service. '
+                           'It this is empty, service problems are always notified.',
             'function': lambda item, req: item.notification_period.get_name(),
         },
         'notifications_enabled': {
@@ -1492,8 +1531,12 @@ livestatus_attribute_map = {
             'datatype': list,
         },
         'members_with_state': {
-            'description': 'A list of all host names that are members of the hostgroup together with state and has_been_checked',
-            'function': lambda item, req: [join_with_separators(req, x.get_name(), x.state_id, x.has_been_checked) for x in item.members],
+            'description': 'A list of all host names that are members of the hostgroup '
+                           'together with state and has_been_checked',
+            'function': lambda item, req: [join_with_separators(req,
+                                                                x.get_name(),
+                                                                x.state_id,
+                                                                x.has_been_checked) for x in item.members],
             'datatype': list,
         },
         'name': {
@@ -1534,23 +1577,28 @@ livestatus_attribute_map = {
         },
         'num_services_crit': {
             'description': 'The total number of services with the state CRIT of hosts in this group',
-            'function': lambda item, req: len([y for x in item.members for y in x.services if y.state_id == 2]),
+            'function': lambda item, req: len([y for x in item.members
+                                               for y in x.services if y.state_id == 2]),
         },
         'num_services_hard_crit': {
             'description': 'The total number of services with the state CRIT of hosts in this group',
-            'function': lambda item, req: len([y for x in item.members for y in x.services if y.state_id == 2 and y.state_type_id == 1]),
+            'function': lambda item, req: len([y for x in item.members
+                                               for y in x.services if y.state_id == 2 and y.state_type_id == 1]),
         },
         'num_services_hard_ok': {
             'description': 'The total number of services with the state OK of hosts in this group',
-            'function': lambda item, req: len([y for x in item.members for y in x.services if y.state_id == 0 and y.state_type_id == 1]),
+            'function': lambda item, req: len([y for x in item.members
+                                               for y in x.services if y.state_id == 0 and y.state_type_id == 1]),
         },
         'num_services_hard_unknown': {
             'description': 'The total number of services with the state UNKNOWN of hosts in this group',
-            'function': lambda item, req: len([y for x in item.members for y in x.services if y.state_id == 3 and y.state_type_id == 1]),
+            'function': lambda item, req: len([y for x in item.members
+                                               for y in x.services if y.state_id == 3 and y.state_type_id == 1]),
         },
         'num_services_hard_warn': {
             'description': 'The total number of services with the state WARN of hosts in this group',
-            'function': lambda item, req: len([y for x in item.members for y in x.services if y.state_id == 2 and y.state_type_id == 1]),
+            'function': lambda item, req: len([y for x in item.members
+                                               for y in x.services if y.state_id == 2 and y.state_type_id == 1]),
         },
         'num_services_ok': {
             'description': 'The total number of services with the state OK of hosts in this group',
@@ -1570,17 +1618,23 @@ livestatus_attribute_map = {
         },
         'worst_host_state': {
             'description': 'The worst state of all of the groups\' hosts (UP <= UNREACHABLE <= DOWN)',
-            'function': lambda item, req: reduce(worst_host_state, (x.state_id for x in item.members if x.state_type_id == 1), 0),
+            'function': lambda item, req: reduce(worst_host_state,
+                                                 (x.state_id for x in item.members if x.state_type_id == 1), 0),
             'datatype': int,
         },
         'worst_service_hard_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
-            'function': lambda item, req: reduce(worst_service_state, (y.state_id for x in item.members for y in x.services if y.state_type_id == 1), 0),
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
+            'function': lambda item, req: reduce(worst_service_state,
+                                                 (y.state_id for x in item.members for y in x.services
+                                                  if y.state_type_id == 1), 0),
             'datatype': int,
         },
         'worst_service_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
-            'function': lambda item, req: reduce(worst_service_state, (y.state_id for x in item.members for y in x.services), 0),
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
+            'function': lambda item, req: reduce(worst_service_state,
+                                                 (y.state_id for x in item.members for y in x.services), 0),
             'datatype': int,
         },
     },
@@ -1600,7 +1654,12 @@ livestatus_attribute_map = {
         },
         'members_with_state': {
             'description': 'A list of all members of the service group with state and has_been_checked',
-            'function': lambda item, req: [join_with_separators(req, x.host_name, x.service_description, x.state_id, x.has_been_checked) for x in sorted(item.members, key=lambda y: y.get_full_name())],
+            'function': lambda item, req: [join_with_separators(req,
+                                                                x.host_name,
+                                                                x.service_description,
+                                                                x.state_id,
+                                                                x.has_been_checked)
+                                           for x in sorted(item.members, key=lambda y: y.get_full_name())],
             'datatype': list,
         },
         'name': {
@@ -1735,12 +1794,14 @@ livestatus_attribute_map = {
         },
         'in_host_notification_period': {
             'description': 'Whether the contact is currently in his/her host notification period (0/1)',
-            'function': lambda item, req: (item.host_notification_period is None and [False] or [item.host_notification_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.host_notification_period is None
+                                           and [False] or [item.host_notification_period.is_time_valid(req.tic)])[0],
             'datatype': bool,
         },
         'in_service_notification_period': {
             'description': 'Whether the contact is currently in his/her service notification period (0/1)',
-            'function': lambda item, req: (item.service_notification_period is None and [False] or [item.service_notification_period.is_time_valid(req.tic)])[0],
+            'function': lambda item, req: (item.service_notification_period is None and [False]
+                                           or [item.service_notification_period.is_time_valid(req.tic)])[0],
             'datatype': bool,
         },
         'modified_attributes': {
@@ -1996,7 +2057,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0-2)',
         },
         'host_check_period': {
-            'description': 'Time period in which this host will be checked. If empty then the host will always be checked.',
+            'description': 'Time period in which this host will be checked. '
+                           'If empty then the host will always be checked.',
         },
         'host_check_type': {
             'description': 'Type of check (0: active, 1: passive)',
@@ -2164,7 +2226,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'host_notification_period': {
-            'description': 'Time period in which problems of this host will be notified. If empty then notification will be always',
+            'description': 'Time period in which problems of this host will be notified. '
+                           'If empty then notification will be always',
         },
         'host_notifications_enabled': {
             'description': 'Whether notifications of the host are enabled (0/1)',
@@ -2306,7 +2369,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0/1)',
         },
         'service_check_period': {
-            'description': 'The name of the check period of the service. It this is empty, the service is always checked.',
+            'description': 'The name of the check period of the service. '
+                           'It this is empty, the service is always checked.',
         },
         'service_check_type': {
             'description': 'The type of the last check (0: active, 1: passive)',
@@ -2471,7 +2535,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'service_notification_period': {
-            'description': 'The name of the notification period of the service. It this is empty, service problems are always notified.',
+            'description': 'The name of the notification period of the service. '
+                           'It this is empty, service problems are always notified.',
         },
         'service_notifications_enabled': {
             'description': 'Whether notifications are enabled for the service (0/1)',
@@ -2515,7 +2580,8 @@ livestatus_attribute_map = {
             'datatype': int,
         },
         'triggered_by': {
-            'description': 'The id of the downtime this downtime was triggered by or 0 if it was not triggered by another downtime',
+            'description': 'The id of the downtime this downtime was triggered by or 0 '
+                           'if it was not triggered by another downtime',
             'function': lambda item, req: item.trigger_id,
             'datatype': int,
         },
@@ -2594,7 +2660,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0-2)',
         },
         'host_check_period': {
-            'description': 'Time period in which this host will be checked. If empty then the host will always be checked.',
+            'description': 'Time period in which this host will be checked. '
+                           'If empty then the host will always be checked.',
         },
         'host_check_type': {
             'description': 'Type of check (0: active, 1: passive)',
@@ -2765,7 +2832,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'host_notification_period': {
-            'description': 'Time period in which problems of this host will be notified. If empty then notification will be always',
+            'description': 'Time period in which problems of this host will be notified. '
+                           'If empty then notification will be always',
         },
         'host_notifications_enabled': {
             'description': 'Whether notifications of the host are enabled (0/1)',
@@ -2909,7 +2977,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0/1)',
         },
         'service_check_period': {
-            'description': 'The name of the check period of the service. It this is empty, the service is always checked.',
+            'description': 'The name of the check period of the service. '
+                           'It this is empty, the service is always checked.',
         },
         'service_check_type': {
             'description': 'The type of the last check (0: active, 1: passive)',
@@ -3077,7 +3146,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'service_notification_period': {
-            'description': 'The name of the notification period of the service. It this is empty, service problems are always notified.',
+            'description': 'The name of the notification period of the service. '
+                           'It this is empty, service problems are always notified.',
         },
         'service_notifications_enabled': {
             'description': 'Whether notifications are enabled for the service (0/1)',
@@ -3138,7 +3208,8 @@ livestatus_attribute_map = {
             'datatype': list,
         },
         'hostgroup_members_with_state': {
-            'description': 'A list of all host names that are members of the hostgroup together with state and has_been_checked',
+            'description': 'A list of all host names that are members of the hostgroup '
+                           'together with state and has_been_checked',
             'function': lambda item, req: item.hostgroup,  # REPAIRME
             'datatype': list,
         },
@@ -3235,12 +3306,14 @@ livestatus_attribute_map = {
             'datatype': int,
         },
         'hostgroup_worst_service_hard_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
             'function': lambda item, req: item.hostgroup,  # REPAIRME
             'datatype': int,
         },
         'hostgroup_worst_service_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
             'function': lambda item, req: item.hostgroup,  # REPAIRME
             'datatype': int,
         },
@@ -3347,7 +3420,8 @@ livestatus_attribute_map = {
             'datatype': list,
         },
         'hostgroup_members_with_state': {
-            'description': 'A list of all host names that are members of the hostgroup together with state and has_been_checked',
+            'description': 'A list of all host names that are members of the hostgroup '
+                           'together with state and has_been_checked',
             'function': lambda item, req: "",  # REPAIRME
             'datatype': list,
         },
@@ -3444,12 +3518,14 @@ livestatus_attribute_map = {
             'datatype': int,
         },
         'hostgroup_worst_service_hard_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
             'function': lambda item, req: "",  # REPAIRME
             'datatype': int,
         },
         'hostgroup_worst_service_state': {
-            'description': 'The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)',
+            'description': 'The worst state of all services that belong to a host of this group '
+                           '(OK <= WARN <= UNKNOWN <= CRIT)',
             'function': lambda item, req: "",  # REPAIRME
             'datatype': int,
         },
@@ -3661,7 +3737,8 @@ livestatus_attribute_map = {
             'datatype': int,
         },
         'class': {
-            'description': 'The class of the message as integer (0:info, 1:state, 2:program, 3:notification, 4:passive, 5:command)',
+            'description': 'The class of the message as integer '
+                           '(0:info, 1:state, 2:program, 3:notification, 4:passive, 5:command)',
             'function': lambda item, req: item.logclass,
             'datatype': int,
         },
@@ -3791,7 +3868,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0-2)',
         },
         'current_host_check_period': {
-            'description': 'Time period in which this host will be checked. If empty then the host will always be checked.',
+            'description': 'Time period in which this host will be checked. '
+                           'If empty then the host will always be checked.',
         },
         'current_host_check_type': {
             'description': 'Type of check (0: active, 1: passive)',
@@ -3962,7 +4040,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'current_host_notification_period': {
-            'description': 'Time period in which problems of this host will be notified. If empty then notification will be always',
+            'description': 'Time period in which problems of this host will be notified. '
+                           'If empty then notification will be always',
         },
         'current_host_notifications_enabled': {
             'description': 'Whether notifications of the host are enabled (0/1)',
@@ -4091,7 +4170,8 @@ livestatus_attribute_map = {
             'description': 'The current check option, forced, normal, freshness... (0/1)',
         },
         'current_service_check_period': {
-            'description': 'The name of the check period of the service. It this is empty, the service is always checked.',
+            'description': 'The name of the check period of the service. '
+                           'It this is empty, the service is always checked.',
         },
         'current_service_check_type': {
             'description': 'The type of the last check (0: active, 1: passive)',
@@ -4259,7 +4339,8 @@ livestatus_attribute_map = {
             'description': 'Interval of periodic notification or 0 if its off',
         },
         'current_service_notification_period': {
-            'description': 'The name of the notification period of the service. It this is empty, service problems are always notified.',
+            'description': 'The name of the notification period of the service. '
+                           'It this is empty, service problems are always notified.',
         },
         'current_service_notifications_enabled': {
             'description': 'Whether notifications are enabled for the service (0/1)',
@@ -4388,98 +4469,112 @@ the object represented by log_host.
 """
 
 
-def host_redirect_factory(attribute):
+def host_redirect_factory(attr):
     """attribute already comes with lsm_"""
-    return lambda item, req: getattr(item.host, attribute)(req)
+    return lambda item, req: getattr(item.host, attr)(req)
 
 
-def ref_redirect_factory(attribute):
-    return lambda item, req: getattr(item.ref, attribute)(req)
+def ref_redirect_factory(attr):
+    return lambda item, req: getattr(item.ref, attr)(req)
 
 
-def log_service_redirect_factory(attribute):
-    return lambda item, req: getattr(item.log_service, attribute)(req)
+def log_service_redirect_factory(attr):
+    return lambda item, req: getattr(item.log_service, attr)(req)
 
 
-def log_host_redirect_factory(attribute):
-    return lambda item, req: getattr(item.log_host, attribute)(req)
+def log_host_redirect_factory(attr):
+    return lambda item, req: getattr(item.log_host, attr)(req)
 
 
-def log_contact_redirect_factory(attribute):
-    return lambda item, req: getattr(item.log_contact, attribute)(req)
+def log_contact_redirect_factory(attr):
+    return lambda item, req: getattr(item.log_contact, attr)(req)
 
 
-def hostgroup_redirect_factory(attribute):
-    return lambda item, req: getattr(item.hostgroup, attribute)(req)
+def hostgroup_redirect_factory(attr):
+    return lambda item, req: getattr(item.hostgroup, attr)(req)
 
 
-def servicegroup_redirect_factory(attribute):
-    return lambda item, req: getattr(item.servicegroup, attribute)(req)
+def servicegroup_redirect_factory(attr):
+    return lambda item, req: getattr(item.servicegroup, attr)(req)
 
 
-def catchall_factory(name, req):
+def catchall_factory(name, req):  # pylint: disable=unused-argument
     def method(*args):
-        logger.info("[Livestatus Broker Mapping] Tried to handle unknown method %s" % name)
+        logger.info("[Livestatus Broker Mapping] Tried to handle unknown method %s", name)
         if args:
-            logger.info("[Livestatus Broker Mapping] It had arguments: %s" % str(args))
+            logger.info("[Livestatus Broker Mapping] It had arguments: %s", str(args))
     return method
 
 
-#print "FINISHING THE ATTRIBUTE MAPPING>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment', 'Hostgroup', 'Servicegroup', 'Contactgroup', 'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink', 'Problem', 'Logline', 'Config']:
+# print "FINISHING THE ATTRIBUTE MAPPING>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment',
+                'Hostgroup', 'Servicegroup', 'Contactgroup',
+                'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink',
+                'Problem', 'Logline', 'Config']:
     cls = [t[1] for t in table_class_map.values() if t[0] == objtype][0]
     setattr(cls, 'livestatus_attributes', [])
     for attribute in livestatus_attribute_map[objtype]:
         entry = livestatus_attribute_map[objtype][attribute]
         if 'function' in entry:
-            setattr(cls, 'lsm_'+attribute, entry['function'])
+            setattr(cls, 'lsm_' + attribute, entry['function'])
             if 'datatype' in entry:
-                #getattr(cls, 'lsm_'+attribute).im_func.datatype = entry['datatype']
-                getattr(cls, 'lsm_'+attribute).im_func.datatype = entry['datatype']
+                # getattr(cls, 'lsm_'+attribute).im_func.datatype = entry['datatype']
+                getattr(cls, 'lsm_' + attribute).im_func.datatype = entry['datatype']
             elif attribute.startswith('num_'):
                 # With this, we don't need to explicitly set int datatype for attributes like num_services_hard_state_ok
-                getattr(cls, 'lsm_'+attribute).im_func.datatype = int
+                getattr(cls, 'lsm_' + attribute).im_func.datatype = int
             else:
-                getattr(cls, 'lsm_'+attribute).im_func.datatype = str
+                getattr(cls, 'lsm_' + attribute).im_func.datatype = str
         elif objtype == 'Service' and attribute.startswith('host_'):
             # Service,host_address -> Service.lsm_host_address -> Host.lsm_address
-            setattr(cls, 'lsm_'+attribute, host_redirect_factory('lsm_'+attribute.replace('host_', '')))
+            setattr(cls, 'lsm_' + attribute, host_redirect_factory('lsm_' + attribute.replace('host_', '')))
             # Service.lsm_host_address.datatype = Host.lsm_address.datatype
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Host, 'lsm_'+attribute.replace('host_', '')).datatype
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = \
+                getattr(Host, 'lsm_' + attribute.replace('host_', '')).datatype
         elif (objtype == 'Comment' or objtype == 'Downtime') and attribute.startswith('host_'):
             # Downtime,host_address -> Downtime.lsm_host_address -> "Ref".lsm_host_address
             #   ref is a host: Host.lsm_host_address works, because all lsm_* also exist as lsm_host_*
             #   ref is a service: Service.lsm_host_address works, because it's delegated to the service's host
-            setattr(cls, 'lsm_'+attribute, ref_redirect_factory('lsm_'+attribute))
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Host, 'lsm_'+attribute).datatype
+            setattr(cls, 'lsm_' + attribute, ref_redirect_factory('lsm_' + attribute))
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = getattr(Host, 'lsm_' + attribute).datatype
         elif (objtype == 'Comment' or objtype == 'Downtime') and attribute.startswith('service_'):
             # Downtime,service_state -> Downtime.lsm_service_state -> "Ref".lsm_state
             #   ref is a host: Host.lsm_state works, although it is wrong. other service-only attributes return 0
             #   ref is a service: Service.lsm_state works
-            setattr(cls, 'lsm_'+attribute, ref_redirect_factory('lsm_'+attribute.replace('service_', '')))
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Service, 'lsm_'+attribute.replace('service_', '')).datatype
+            setattr(cls, 'lsm_' + attribute,
+                    ref_redirect_factory('lsm_' + attribute.replace('service_', '')))
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = \
+                getattr(Service, 'lsm_' + attribute.replace('service_', '')).datatype
         elif objtype == 'Logline' and attribute.startswith('current_service_'):
-            setattr(cls, 'lsm_'+attribute, log_service_redirect_factory('lsm_'+attribute.replace('current_service_', '')))
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Service, 'lsm_'+attribute.replace('current_service_', '')).datatype
+            setattr(cls, 'lsm_' + attribute,
+                    log_service_redirect_factory('lsm_' + attribute.replace('current_service_', '')))
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = \
+                getattr(Service, 'lsm_' + attribute.replace('current_service_', '')).datatype
         elif objtype == 'Logline' and attribute.startswith('current_host_'):
-            setattr(cls, 'lsm_'+attribute, log_host_redirect_factory('lsm_'+attribute.replace('current_host_', '')))
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Host, 'lsm_'+attribute.replace('current_host_', '')).datatype
+            setattr(cls, 'lsm_' + attribute,
+                    log_host_redirect_factory('lsm_' + attribute.replace('current_host_', '')))
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = \
+                getattr(Host, 'lsm_' + attribute.replace('current_host_', '')).datatype
         elif objtype == 'Logline' and attribute.startswith('current_contact_'):
-            setattr(cls, 'lsm_'+attribute, log_contact_redirect_factory('lsm_'+attribute.replace('current_contact_', '')))
-            getattr(cls, 'lsm_'+attribute).im_func.datatype = getattr(Contact, 'lsm_'+attribute.replace('current_contact_', '')).datatype
+            setattr(cls, 'lsm_' + attribute,
+                    log_contact_redirect_factory('lsm_' + attribute.replace('current_contact_', '')))
+            getattr(cls, 'lsm_' + attribute).im_func.datatype = \
+                getattr(Contact, 'lsm_' + attribute.replace('current_contact_', '')).datatype
         else:
             pass
             # let the lambda return a default value
             # setattr(cls, 'lsm_'+attribute, lambda item, req: 0)
             # getattr(cls, 'lsm_'+attribute).im_func.datatype =?
         # _Every_ attribute _must_ have a description
-        getattr(cls, 'lsm_'+attribute).im_func.description = entry['description']
+        getattr(cls, 'lsm_' + attribute).im_func.description = entry['description']
     if objtype == 'Host':
         # for every lsm_* there is also a lsm_host_*
         for attribute in livestatus_attribute_map['Host']:
-            setattr(cls, 'lsm_host_'+attribute, getattr(cls, 'lsm_'+attribute))
-            getattr(cls, 'lsm_host_'+attribute).im_func.description = getattr(cls, 'lsm_'+attribute).im_func.description
-            getattr(cls, 'lsm_host_'+attribute).im_func.datatype = getattr(cls, 'lsm_'+attribute).im_func.datatype
+            setattr(cls, 'lsm_host_' + attribute, getattr(cls, 'lsm_' + attribute))
+            getattr(cls, 'lsm_host_' + attribute).im_func.description = \
+                getattr(cls, 'lsm_' + attribute).im_func.description
+            getattr(cls, 'lsm_host_' + attribute).im_func.datatype = \
+                getattr(cls, 'lsm_' + attribute).im_func.datatype
         # this is for "GET downtimes\nFilter: service_description !=\n" which is used to fetch host-downtimes
         setattr(cls, 'lsm_description', lambda item, ref: '')
 
@@ -4489,71 +4584,85 @@ for objtype in ['Host', 'Service']:
         # in LivestatusQuery.get_group_livedata, (copied) Host objects get an extra "hostgroup" attribute
         # and Service objects get an extra "servicegroup" attribute. Here we set the lsm-attributes for them
         for attribute in livestatus_attribute_map['Hostgroup']:
-            setattr(cls, 'lsm_hostgroup_'+attribute, hostgroup_redirect_factory('lsm_'+attribute.replace('hostgroup_', '')))
-            getattr(cls, 'lsm_hostgroup_'+attribute).im_func.description = getattr(Hostgroup, 'lsm_'+attribute).im_func.description
-            getattr(cls, 'lsm_hostgroup_'+attribute).im_func.datatype = getattr(Hostgroup, 'lsm_'+attribute).im_func.datatype
+            setattr(cls, 'lsm_hostgroup_' + attribute,
+                    hostgroup_redirect_factory('lsm_' + attribute.replace('hostgroup_', '')))
+            getattr(cls, 'lsm_hostgroup_' + attribute).im_func.description = \
+                getattr(Hostgroup, 'lsm_' + attribute).im_func.description
+            getattr(cls, 'lsm_hostgroup_' + attribute).im_func.datatype = \
+                getattr(Hostgroup, 'lsm_' + attribute).im_func.datatype
     if objtype == 'Service':
         for attribute in livestatus_attribute_map['Servicegroup']:
-            setattr(cls, 'lsm_servicegroup_'+attribute, servicegroup_redirect_factory('lsm_'+attribute.replace('servicegroup_', '')))
-            getattr(cls, 'lsm_servicegroup_'+attribute).im_func.description = getattr(Servicegroup, 'lsm_'+attribute).im_func.description
-            getattr(cls, 'lsm_servicegroup_'+attribute).im_func.datatype = getattr(Servicegroup, 'lsm_'+attribute).im_func.datatype
+            setattr(cls, 'lsm_servicegroup_' + attribute,
+                    servicegroup_redirect_factory('lsm_' + attribute.replace('servicegroup_', '')))
+            getattr(cls, 'lsm_servicegroup_' + attribute).im_func.description = \
+                getattr(Servicegroup, 'lsm_' + attribute).im_func.description
+            getattr(cls, 'lsm_servicegroup_' + attribute).im_func.datatype = \
+                getattr(Servicegroup, 'lsm_' + attribute).im_func.datatype
         # in LivestatusQuery.get_service_by_hostgroup, (copied) Service objects get an extra "hostgroup" attribute
         # and Service objects get an extra "servicegroup" attribute. Here we set the lsm-attributes for them
         for attribute in livestatus_attribute_map['Hostgroup']:
-            setattr(cls, 'lsm_hostgroup_'+attribute, hostgroup_redirect_factory('lsm_'+attribute.replace('hostgroup_', '')))
-            getattr(cls, 'lsm_hostgroup_'+attribute).im_func.description = getattr(Hostgroup, 'lsm_'+attribute).im_func.description
-            getattr(cls, 'lsm_hostgroup_'+attribute).im_func.datatype = getattr(Hostgroup, 'lsm_'+attribute).im_func.datatype
+            setattr(cls, 'lsm_hostgroup_' + attribute,
+                    hostgroup_redirect_factory('lsm_' + attribute.replace('hostgroup_', '')))
+            getattr(cls, 'lsm_hostgroup_' + attribute).im_func.description = \
+                getattr(Hostgroup, 'lsm_' + attribute).im_func.description
+            getattr(cls, 'lsm_hostgroup_' + attribute).im_func.datatype = \
+                getattr(Hostgroup, 'lsm_' + attribute).im_func.datatype
 
 # Finally set some default values for the different datatypes
-for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment', 'Hostgroup', 'Servicegroup', 'Contactgroup', 'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink', 'Problem', 'Logline', 'Config']:
+for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment',
+                'Hostgroup', 'Servicegroup', 'Contactgroup',
+                'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink',
+                'Problem', 'Logline', 'Config']:
     cls = [t[1] for t in table_class_map.values() if t[0] == objtype][0]
     for attribute in livestatus_attribute_map[objtype]:
-        entry =  livestatus_attribute_map[objtype][attribute]
-        if not hasattr(getattr(cls, 'lsm_'+attribute).im_func, 'datatype'):
-            getattr(cls, 'lsm_'+attribute).im_func.default = 0
-        elif getattr(cls, 'lsm_'+attribute).im_func.datatype == int:
-            getattr(cls, 'lsm_'+attribute).im_func.default = 0
-        elif getattr(cls, 'lsm_'+attribute).im_func.datatype == float:
-            getattr(cls, 'lsm_'+attribute).im_func.default = 0.0
-        elif getattr(cls, 'lsm_'+attribute).im_func.datatype == str:
-            getattr(cls, 'lsm_'+attribute).im_func.default = ''
-        elif getattr(cls, 'lsm_'+attribute).im_func.datatype == list:
-            getattr(cls, 'lsm_'+attribute).im_func.default = []
-        elif getattr(cls, 'lsm_'+attribute).im_func.datatype == bool:
-            getattr(cls, 'lsm_'+attribute).im_func.default = False
+        entry = livestatus_attribute_map[objtype][attribute]
+        if not hasattr(getattr(cls, 'lsm_' + attribute).im_func, 'datatype'):
+            getattr(cls, 'lsm_' + attribute).im_func.default = 0
+        elif getattr(cls, 'lsm_' + attribute).im_func.datatype == int:
+            getattr(cls, 'lsm_' + attribute).im_func.default = 0
+        elif getattr(cls, 'lsm_' + attribute).im_func.datatype == float:
+            getattr(cls, 'lsm_' + attribute).im_func.default = 0.0
+        elif getattr(cls, 'lsm_' + attribute).im_func.datatype == str:
+            getattr(cls, 'lsm_' + attribute).im_func.default = ''
+        elif getattr(cls, 'lsm_' + attribute).im_func.datatype == list:
+            getattr(cls, 'lsm_' + attribute).im_func.default = []
+        elif getattr(cls, 'lsm_' + attribute).im_func.datatype == bool:
+            getattr(cls, 'lsm_' + attribute).im_func.default = False
 
-for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment', 'Hostgroup', 'Servicegroup', 'Contactgroup', 'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink', 'Problem', 'Logline', 'Config']:
+for objtype in ['Host', 'Service', 'Contact', 'Command', 'Timeperiod', 'Downtime', 'Comment',
+                'Hostgroup', 'Servicegroup', 'Contactgroup',
+                'SchedulerLink', 'PollerLink', 'ReactionnerLink', 'BrokerLink',
+                'Problem', 'Logline', 'Config']:
     cls = [t[1] for t in table_class_map.values() if t[0] == objtype][0]
     cls.lsm_columns = []
     for attribute in sorted([x for x in livestatus_attribute_map[objtype]]):
         cls.lsm_columns.append(attribute)
 
-#print "FINISHED THE ATTRIBUTE MAPPING<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
-def find_filter_converter(table, attribute, reverse=False):
+def find_filter_converter(table, attr):
     """Return a function which converts a string to the attribute's data type"""
 
     tableclass = table_class_map[table][1]
     # attribute already has a lsm-prefix
-    function = getattr(tableclass, attribute, None)
-    if function == None:
+    function = getattr(tableclass, attr, None)
+    if function is None:
         return None
-    else:
-        datatype = getattr(function, 'datatype', None)
-        if datatype == None:
-            return None
-        elif datatype == str:
-            return None
-        elif datatype == int:
-            return int
-        elif datatype == float:
-            return float
-        elif datatype == bool:
-            return lambda string: string != "0"
-        elif datatype == list:
-            return None
-        else:
-            return None
+
+    datatype = getattr(function, 'datatype', None)
+    if datatype is None:
+        return None
+    elif datatype == str:
+        return None
+    elif datatype == int:
+        return int
+    elif datatype == float:
+        return float
+    elif datatype == bool:
+        return lambda string: string != "0"
+    elif datatype == list:
+        return None
+
+    return None
 
 
 def list_livestatus_attributes(table):

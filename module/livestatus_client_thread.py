@@ -28,7 +28,7 @@ class LiveStatusClientError(Exception):
     pass
 
 
-class Error:
+class Error(object):
     class ClientError(LiveStatusClientError):
         pass
 
@@ -55,16 +55,16 @@ class Error:
 #############################################################################
 
 class LiveStatusClientThread(threading.Thread):
-    ''' A LiveStatus Client Thread will handle a full LS client connection.
-    '''
+    """A LiveStatus Client Thread will handle a full LS client connection.
+    """
 
     def __init__(self, client_sock, client_address, livestatus_broker):
-        '''
+        """
         :param client_sock: The socket instance of the client.
         :param client_address:  The address of the client.
         :param livestatus_broker:
         :type livestatus_broker: .livestatus_broker.LiveStatus_broker
-        '''
+        """
         super(LiveStatusClientThread, self).__init__()
         self.client_sock = client_sock
         self.client_address = client_address
@@ -103,7 +103,7 @@ class LiveStatusClientThread(threading.Thread):
                 endline = buf.find(b'\r\n\r\n')
                 sz = 4
             if endline >= 0:
-                for di in range(idx):
+                for _ in range(idx):
                     del self.buffer_list[0]
                 self.buffer_list[0] = self.buffer_list[0][endline + sz:]
                 if not self.buffer_list[0]:
@@ -242,6 +242,7 @@ class LiveStatusClientThread(threading.Thread):
             if response:
                 self.send_response(response)
         except LiveStatusQueryError as err:
+            # pylint: disable=unbalanced-tuple-unpacking
             code, detail = err.args
             response = LiveStatusResponse()
             response.set_error(code, detail)

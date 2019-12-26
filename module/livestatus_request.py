@@ -29,7 +29,7 @@ from livestatus_wait_query import LiveStatusWaitQuery
 from livestatus_command_query import LiveStatusCommandQuery
 
 
-class LiveStatusRequest:
+class LiveStatusRequest(object):
 
     """A class describing a livestatus request."""
 
@@ -64,7 +64,7 @@ class LiveStatusRequest:
             if ':' in line and ' ' not in line:
                 line = line.replace(':', ': ')
             keyword = line.split(' ')[0].rstrip(':')
-            if len(line) == 0:
+            if not line:
                 pass
             elif keyword in ('GET',):
                 query_cmds.append(line)
@@ -76,7 +76,7 @@ class LiveStatusRequest:
                 external_cmds.append(line)
             else:
                 query_cmds.append(line)
-        if len(external_cmds) > 0:
+        if external_cmds:
             for external_cmd in external_cmds:
                 query = LiveStatusCommandQuery(self.datamgr, self.query_cache, self.db,
                                                self.pnp_path, self.return_queue, self.counters)
@@ -87,7 +87,7 @@ class LiveStatusRequest:
                                         self.pnp_path, self.return_queue, self.counters)
             query.parse_input('\n'.join(wait_cmds))
             self.queries.append(query)
-        if len(query_cmds) > 0:
+        if query_cmds:
             query = LiveStatusQuery(self.datamgr, self.query_cache, self.db,
                                     self.pnp_path, self.return_queue, self.counters)
             query.parse_input('\n'.join(query_cmds))

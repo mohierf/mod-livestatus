@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# pylint: disable=unused-import, attribute-defined-outside-init
 
 # Copyright (C) 2009-2012:
 #    Gabes Jean, naparuba@gmail.com
@@ -29,25 +30,8 @@ a livestatus query interface
 """
 
 
-properties = {
-    'daemons': ['broker', 'scheduler'],
-    'type': 'livestatus',
-    'phases': ['running'],
-    'external': True,
-    }
-
-# called by the plugin manager to get an instance
-
-
-def get_instance(plugin):
-    logger.info("[Livestatus Broker] Get a Livestatus instance for plugin %s" % plugin.get_name())
-
-    instance = LiveStatus_broker(plugin)
-    return instance
-
 #############################################################################
 
-import errno
 import select
 import socket
 import os
@@ -78,29 +62,44 @@ from .livestatus_client_thread import LiveStatusClientThread
 # until they are corrected to import from the good place we need them here:
 
 from .livestatus_stack import LiveStatusStack
-from .log_line import (
-    Logline,
-    LOGCLASS_INVALID
-)
+from .log_line import Logline, LOGCLASS_INVALID
 
 #############################################################################
 
-def full_safe_close(socket):
+
+properties = {
+    'daemons': ['broker', 'scheduler'],
+    'type': 'livestatus',
+    'phases': ['running'],
+    'external': True
+}
+
+# called by the plugin manager to get an instance
+
+
+def get_instance(plugin):
+    logger.info("[Livestatus Broker] Get a Livestatus instance for plugin %s", plugin.get_name())
+
+    instance = LiveStatus_broker(plugin)
+    return instance
+
+
+def full_safe_close(a_socket):
     try:
-        socket.shutdown(2)
+        a_socket.shutdown(2)
     except Exception as err:
-        logger.warning('Error on socket shutdown: %s' % err)
+        logger.warning('Error on socket shutdown: %s', err)
     try:
-        socket.close()
+        a_socket.close()
     except Exception as err:
-        logger.warning('Error on socket close: %s' % err)
+        logger.warning('Error on socket close: %s', err)
 
 
 # Class for the LiveStatus Broker
 # Get broks and listen to livestatus query language requests
 class LiveStatus_broker(BaseModule, Daemon):
 
-    def __init__(self, modconf):
+    def __init__(self, modconf):  # pylint: disable=super-init-not-called
         BaseModule.__init__(self, modconf)
         # We can be in a scheduler. If so, we keep a link to it to speed up regenerator phase
         self.scheduler = None
@@ -118,23 +117,41 @@ class LiveStatus_broker(BaseModule, Daemon):
             self.socket = None
         self.allowed_hosts = getattr(modconf, 'allowed_hosts', '')
         ips = [ip.strip() for ip in self.allowed_hosts.split(',') if ip]
-        self.allowed_hosts = [ip for ip in ips if re.match(r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$', ip)]
+
+        ip_regex = re.compile(
+            r'^'
+            r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
+            r'\.'
+            r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
+            r'\.'
+            r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
+            r'\.'
+            r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
+            r'$')
+
+        self.allowed_hosts = [
+            ip for ip in ips if re.match(ip_regex, ip)
+        ]
         if len(ips) != len(self.allowed_hosts):
-            logger.warning("[Livestatus Broker] Warning: the list of allowed hosts is invalid. %s" % str(ips))
-            logger.warning("[Livestatus Broker] Warning: the list of allowed hosts is invalid. %s" % str(self.allowed_hosts))
-            raise
+            logger.warning("[Livestatus Broker] Warning: the list of allowed hosts is invalid. %s", ips)
+            logger.warning("[Livestatus Broker] Warning: the list of allowed hosts is invalid. %s", self.allowed_hosts)
+            raise Exception("Invalid list of allowed hosts")
+
         self.pnp_path = getattr(modconf, 'pnp_path', '')
         self.debug = getattr(modconf, 'debug', None)
         self.debug_queries = (getattr(modconf, 'debug_queries', '0') == '1')
         self.use_query_cache = (getattr(modconf, 'query_cache', '0') == '1')
+
+        self.service_authorization_strict = False
         if getattr(modconf, 'service_authorization', 'loose') == 'strict':
             self.service_authorization_strict = True
-        else:
-            self.service_authorization_strict = False
+
+        self.group_authorization_strict = False
         if getattr(modconf, 'group_authorization', 'strict') == 'strict':
             self.group_authorization_strict = True
-        else:
-            self.group_authorization_strict = False
+
+        self.datamgr = None
+        self.query_cache = None
 
         #  This is an "artificial" module which is used when an old-style
         #  shinken-specific.cfg without a separate logstore-module is found.
@@ -148,7 +165,8 @@ class LiveStatus_broker(BaseModule, Daemon):
         }
         # We need to have our regenerator now because it will need to load
         # data from scheduler before main() if in scheduler of course
-        self.rg = LiveStatusRegenerator(self.service_authorization_strict, self.group_authorization_strict)
+        self.rg = LiveStatusRegenerator(self.service_authorization_strict,
+                                        self.group_authorization_strict)
 
         self.client_connections = {}  # keys will be socket of client,
         # values are LiveStatusClientThread instances
@@ -158,10 +176,10 @@ class LiveStatus_broker(BaseModule, Daemon):
         self._listening_thread = threading.Thread(target=self._listening_thread_run)
 
     def add_compatibility_sqlite_module(self):
-        if len([m for m in self.modules_manager.instances if m.properties['type'].startswith('logstore_')]) == 0:
+        if not [m for m in self.modules_manager.instances if m.properties['type'].startswith('logstore_')]:
             #  this shinken-specific.cfg does not use the new submodules
-            for k in self.compat_sqlite.keys():
-                if self.compat_sqlite[k] == None:
+            for k in self.compat_sqlite:
+                if self.compat_sqlite[k] is None:
                     del self.compat_sqlite[k]
             dbmod = Module(self.compat_sqlite)
             self.modules_manager.set_modules([dbmod])
@@ -172,11 +190,17 @@ class LiveStatus_broker(BaseModule, Daemon):
     # TODO: add conf param to get pass with init
     # Conf from arbiter!
     def init(self):
-        logger.info("[Livestatus Broker] Init of the Livestatus '%s'" % self.name)
+        logger.info("[Livestatus Broker] Init of the Livestatus '%s'", self.name)
         self.prepare_pnp_path()
-        m = MacroResolver() # TODO: don't know/think these 2 lines are necessary..
-        m.output_macros = ['HOSTOUTPUT', 'HOSTPERFDATA', 'HOSTACKAUTHOR', 'HOSTACKCOMMENT', 'SERVICEOUTPUT', 'SERVICEPERFDATA', 'SERVICEACKAUTHOR', 'SERVICEACKCOMMENT']
+        # TODO: don't know/think these 2 lines are necessary..
+        m = MacroResolver()
+        m.output_macros = [
+            'HOSTOUTPUT', 'HOSTPERFDATA', 'HOSTACKAUTHOR', 'HOSTACKCOMMENT',
+            'SERVICEOUTPUT', 'SERVICEPERFDATA', 'SERVICEACKAUTHOR', 'SERVICEACKCOMMENT']
         self.rg.load_external_queue(self.from_q)
+
+    def do_loop_turn(self):
+        return True
 
     # This is called only when we are in a scheduler
     # and just before we are started. So we can gain time, and
@@ -193,17 +217,17 @@ class LiveStatus_broker(BaseModule, Daemon):
 
     def prepare_pnp_path(self):
         if not self.pnp_path:
-            self.pnp_path = False
+            self.pnp_path = ''
         elif not os.access(self.pnp_path, os.R_OK):
-            logger.warning("[Livestatus Broker] PNP perfdata path %s is not readable" % self.pnp_path)
+            logger.warning("[Livestatus Broker] PNP perfdata path %s is not readable", self.pnp_path)
         elif not os.access(self.pnp_path, os.F_OK):
-            logger.warning("[Livestatus Broker] PNP perfdata path %s does not exist" % self.pnp_path)
+            logger.warning("[Livestatus Broker] PNP perfdata path %s does not exist", self.pnp_path)
         if self.pnp_path and not self.pnp_path.endswith('/'):
             self.pnp_path += '/'
 
     def set_debug(self):
         fdtemp = os.open(self.debug, os.O_CREAT | os.O_WRONLY | os.O_APPEND)
-        ## We close out and err
+        # We close out and err
         os.close(1)
         os.close(2)
         os.dup2(fdtemp, 1)  # standard output (1)
@@ -228,7 +252,7 @@ class LiveStatus_broker(BaseModule, Daemon):
                     f(self)
                 break
         for s in self.debug_output:
-            logger.debug("[Livestatus Broker] %s" % s)
+            logger.debug("[Livestatus Broker] %s", s)
         del self.debug_output
         self.add_compatibility_sqlite_module()
         self.datamgr = datamgr
@@ -254,7 +278,7 @@ class LiveStatus_broker(BaseModule, Daemon):
     # A plugin send us en external command. We just put it
     # in the good queue
     def push_external_command(self, e):
-        logger.info("[Livestatus Broker] Got an external command: %s" % str(e.__dict__))
+        logger.info("[Livestatus Broker] Got an external command: %s", str(e.__dict__))
         self.from_q.put(e)
 
     # Real main function
@@ -293,11 +317,12 @@ class LiveStatus_broker(BaseModule, Daemon):
         for mod in self.modules_manager.get_internal_instances():
             try:
                 mod.manage_brok(brok)
-            except Exception, exp:
-                logger.debug("[Livestatus Broker] %s" % str(exp.__dict__))
-                logger.warning("[%s] The mod %s raise an exception: %s, I'm tagging it to restart later" % (self.name, mod.get_name(), str(exp)))
-                logger.debug("[%s] Exception type: %s" % (self.name, type(exp)))
-                logger.debug("Back trace of this kill: %s" % (traceback.format_exc()))
+            except Exception as exp:
+                logger.debug("[Livestatus Broker] %s", str(exp.__dict__))
+                logger.warning("[%s] The mod %s raise an exception: %s, I'm tagging it to restart later",
+                               self.name, mod.get_name(), str(exp))
+                logger.debug("[%s] Exception type: %s", self.name, type(exp))
+                logger.debug("Back trace of this kill: %s", traceback.format_exc())
                 self.modules_manager.set_to_restart(mod)
 
     def do_stop(self):
@@ -318,13 +343,13 @@ class LiveStatus_broker(BaseModule, Daemon):
         try:
             self.db.close()
         except Exception as err:
-            logger.warning('Error on db close: %s' % err)
+            logger.warning('Error on db close: %s', err)
 
     def create_listeners(self):
         backlog = 5
         if self.port:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server.setblocking(0)
+            server.setblocking(False)
             if hasattr(socket, 'SO_REUSEPORT'):
                 try:
                     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -335,7 +360,7 @@ class LiveStatus_broker(BaseModule, Daemon):
             server.bind((self.host, self.port))
             server.listen(backlog)
             self.listeners.append(server)
-            logger.info("[Livestatus Broker] listening on tcp port: %d" % self.port)
+            logger.info("[Livestatus Broker] listening on tcp port: %d", self.port)
         if self.socket:
             if os.path.exists(self.socket):
                 os.remove(self.socket)
@@ -344,18 +369,18 @@ class LiveStatus_broker(BaseModule, Daemon):
                 os.mkdir(os.path.dirname(self.socket))
             os.umask(0)
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.setblocking(0)
+            sock.setblocking(False)
             sock.bind(self.socket)
             sock.listen(backlog)
             self.listeners.append(sock)
-            logger.info("[Livestatus Broker] listening on unix socket: %s" % str(self.socket))
+            logger.info("[Livestatus Broker] listening on unix socket: %s", str(self.socket))
 
     def _listening_thread_run(self):
         while not self.interrupted:
             # Check for pending livestatus new connection..
             inputready, _, exceptready = select.select(self.listeners, [], [], 1)
 
-            if len(exceptready) > 0:
+            if exceptready:
                 pass  # TODO ?
 
             for s in inputready:
@@ -364,14 +389,14 @@ class LiveStatus_broker(BaseModule, Daemon):
                 if isinstance(address, tuple):
                     client_ip, _ = address
                     if self.allowed_hosts and client_ip not in self.allowed_hosts:
-                        logger.warning("[Livestatus Broker] Connection attempt from illegal ip address %s" % str(client_ip))
+                        logger.warning("[Livestatus Broker] Connection attempt from illegal ip address %s",
+                                       str(client_ip))
                         full_safe_close(sock)
                         continue
 
                 new_client = self.client_connections[sock] = LiveStatusClientThread(sock, address, self)
                 new_client.start()
                 self.livestatus.count_event('connections')
-            # end for s in inputready:
 
             # At the end of this loop we probably will discard connections
             kick_connections = []
@@ -406,19 +431,19 @@ class LiveStatus_broker(BaseModule, Daemon):
                 self.db.commit_and_rotate_log_db()
 
             try:
-                l = self.to_q.get(True, 1)
+                message = self.to_q.get(True, 1)
             except IOError as err:
                 if err.errno != os.errno.EINTR:
                     raise
             except Queue.Empty:
                 pass
             else:
-                for b in l:
-                    b.prepare()  # Un-serialize the brok data
-                    self.rg.manage_brok(b)
+                for brok in message:
+                    brok.prepare()  # Un-serialize the brok data
+                    self.rg.manage_brok(brok)
                     for mod in self.modules_manager.get_internal_instances():
                         try:
-                            mod.manage_brok(b)
+                            mod.manage_brok(brok)
                         except Exception as err:
                             logger.exception(
                                 "[%s] Warning: The mod %s raise an exception: %s,"

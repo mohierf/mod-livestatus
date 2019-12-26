@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# todo: deprecated-lambda!
+# pylint: disable=deprecated-lambda
 
 # Copyright (C) 2009-2012:
 #    Gabes Jean, naparuba@gmail.com
@@ -38,17 +40,20 @@ from livestatus_query_error import LiveStatusQueryError
 
 #############################################################################
 
+
 def gen_all(values):
     for val in values:
         yield val
+
 
 def gen_filtered(values, filterfunc):
     for val in values:
         if filterfunc(val):
             yield val
 
+
 def gen_limit(values, maxelements):
-    ''' This is a generator which returns up to <limit> elements '''
+    """This is a generator which returns up to <limit> elements"""
     loopcnt = 1
     for val in values:
         if loopcnt > maxelements:
@@ -56,14 +61,18 @@ def gen_limit(values, maxelements):
         yield val
         loopcnt += 1
 
-# This is a generator which returns up to <limit> elements
-# which passed the filter. If the limit has been reached
-# it is no longer necessary to loop through the original list.
+
 def gen_limit_filtered(values, maxelements, filterfunc):
+    """
+    This is a generator which returns up to <limit> elements
+    which passed the filter. If the limit has been reached
+    it is no longer necessary to loop through the original list.
+    """
     for val in gen_limit(gen_filtered(values, filterfunc), maxelements):
         yield val
 
 #############################################################################
+
 
 class LiveStatusQuery(object):
 
@@ -108,9 +117,13 @@ class LiveStatusQuery(object):
         # the class behind a queries table
         self.table_class_map = table_class_map
 
+        self.metainfo = None
+        self.pnp_path_readable = False
+
     def __str__(self):
         output = "LiveStatusRequest:\n"
-        for attr in ["table", "columns", "filtercolumns", "prefiltercolumns", "aliases", "stats_group_by", "stats_query"]:
+        for attr in ["table", "columns", "filtercolumns", "prefiltercolumns",
+                     "aliases", "stats_group_by", "stats_query"]:
             output += "request %s: %s\n" % (attr, getattr(self, attr))
         return output
 
@@ -131,11 +144,11 @@ class LiveStatusQuery(object):
     def strip_table_from_column(self, column):
         """Cut off the table name, because it is possible
         to say service_state instead of state"""
-        bygroupmatch = re.compile('(\w+)by.*group').search(self.table)
+        bygroupmatch = re.compile(r'(\w+)by.*group').search(self.table)
         if bygroupmatch:
-            return re.sub(re.sub('s$', '', bygroupmatch.group(1)) + '_', '', column, 1)
-        else:
-            return re.sub(re.sub('s$', '', self.table) + '_', '', column, 1)
+            return re.sub(re.sub(r's$', '', bygroupmatch.group(1)) + '_', '', column, 1)
+
+        return re.sub(re.sub(r's$', '', self.table) + '_', '', column, 1)
 
     def parse_input(self, data):
         """Parse the lines of a livestatus request.
@@ -148,43 +161,54 @@ class LiveStatusQuery(object):
             line = line.strip()
             # Tools like NagVis send KEYWORK:option, and we prefer to have
             # a space following the:
-            if ':' in line and not ' ' in line:
+            if ':' in line and ' ' not in line:
                 line = line.replace(':', ': ')
             keyword = line.split(' ')[0].rstrip(':')
             if keyword == 'GET':  # Get the name of the base table
                 _, self.table = self.split_command(line)
                 if self.table not in table_class_map.keys():
                     raise LiveStatusQueryError(404, self.table)
+
             elif keyword == 'Columns':  # Get the names of the desired columns
                 _, self.columns = self.split_option_with_columns(line)
                 self.response.columnheaders = 'off'
+
             elif keyword == 'ResponseHeader':
                 _, responseheader = self.split_option(line)
                 self.response.responseheader = responseheader
+
             elif keyword == 'OutputFormat':
                 _, outputformat = self.split_option(line)
                 self.response.outputformat = outputformat
+
             elif keyword == 'KeepAlive':
                 _, keepalive = self.split_option(line)
                 self.response.keepalive = keepalive
+
             elif keyword == 'ColumnHeaders':
                 _, columnheaders = self.split_option(line)
                 self.response.columnheaders = columnheaders
+
             elif keyword == 'Limit':
                 _, self.limit = self.split_option(line)
+
             elif keyword == 'AuthUser':
-                if self.table in ['hosts', 'hostgroups', 'services', 'servicegroups', 'hostsbygroup', 'servicesbygroup', 'servicesbyhostgroup']:
+                if self.table in ['hosts', 'hostgroups', 'services', 'servicegroups',
+                                  'hostsbygroup', 'servicesbygroup', 'servicesbyhostgroup']:
                     _, self.authuser = self.split_option(line)
                 # else self.authuser stays None and will be ignored
+
             elif keyword == 'Filter':
                 try:
                     _, attribute, operator, reference = self.split_option(line, 3)
-                except ValueError as err:
+                except ValueError:
                     try:
                         _, attribute, operator, reference = self.split_option(line, 2) + ['']
-                    except ValueError as err:
+                    except ValueError:
                         raise LiveStatusQueryError(452, 'invalid Filter header')
-                if operator in ['=', '>', '>=', '<', '<=', '=~', '~', '~~', '!=', '!>', '!>=', '!<', '!<=', '!=~', '!~', '!~~']:
+
+                if operator in ['=', '>', '>=', '<', '<=', '=~', '~', '~~', '!=',
+                                '!>', '!>=', '!<', '!<=', '!=~', '!~', '!~~']:
                     # Cut off the table name
                     attribute = self.strip_table_from_column(attribute)
                     # Some operators can simply be negated
@@ -198,8 +222,8 @@ class LiveStatusQuery(object):
                     if self.table == 'log':
                         self.db.add_filter(operator, attribute, reference)
                 else:
-                    logger.warning("[Livestatus Query] Illegal operation: %s" % str(operator))
-                    pass  # illegal operation
+                    logger.warning("[Livestatus Query] Illegal operation: %s", str(operator))
+
             elif keyword == 'And':
                 _, andnum = self.split_option(line)
                 # Take the last andnum functions from the stack
@@ -208,6 +232,7 @@ class LiveStatusQuery(object):
                 self.filter_stack.and_elements(andnum)
                 if self.table == 'log':
                     self.db.add_filter_and(andnum)
+
             elif keyword == 'Or':
                 _, ornum = self.split_option(line)
                 # Take the last ornum functions from the stack
@@ -216,16 +241,19 @@ class LiveStatusQuery(object):
                 self.filter_stack.or_elements(ornum)
                 if self.table == 'log':
                     self.db.add_filter_or(ornum)
+
             elif keyword == 'Negate':
                 self.filter_stack.not_elements()
                 if self.table == 'log':
                     self.db.add_filter_not()
+
             elif keyword == 'StatsGroupBy':
                 _, stats_group_by = self.split_option_with_columns(line)
                 self.filtercolumns.extend(stats_group_by)
                 self.stats_group_by.extend(stats_group_by)
                 # Deprecated. If your query contains at least one Stats:-header
                 # then Columns: has the meaning of the old StatsGroupBy: header
+
             elif keyword == 'Stats':
                 self.stats_query = True
                 try:
@@ -244,7 +272,8 @@ class LiveStatusQuery(object):
                         attribute, operator = operator, attribute
                     reference = ''
                 attribute = self.strip_table_from_column(attribute)
-                if operator in ['=', '>', '>=', '<', '<=', '=~', '~', '~~', '!=', '!>', '!>=', '!<', '!<=', '!=~', '!~', '!~~']:
+                if operator in ['=', '>', '>=', '<', '<=', '=~', '~', '~~', '!=', '!>',
+                                '!>=', '!<', '!<=', '!=~', '!~', '!~~']:
                     if operator in ['!>', '!>=', '!<', '!<=']:
                         operator = {'!>': '<=', '!>=': '<', '!<': '>=', '!<=': '>'}[operator]
                     self.filtercolumns.append(attribute)
@@ -256,25 +285,29 @@ class LiveStatusQuery(object):
                     self.stats_filter_stack.put_stack(self.make_filter('dummy', attribute, None))
                     self.stats_postprocess_stack.put_stack(self.make_filter(operator, attribute, None))
                 else:
-                    logger.warning("[Livestatus Query] Illegal operation: %s" % str(operator))
-                    pass  # illegal operation
+                    logger.warning("[Livestatus Query] Illegal operation: %s", str(operator))
+
             elif keyword == 'StatsAnd':
                 _, andnum = self.split_option(line)
                 self.stats_filter_stack.and_elements(andnum)
+
             elif keyword == 'StatsOr':
                 _, ornum = self.split_option(line)
                 self.stats_filter_stack.or_elements(ornum)
+
             elif keyword == 'Separators':
                 separators = map(lambda sep: chr(int(sep)), line.split(' ', 5)[1:])
                 self.response.separators = Separators(*separators)
+
             elif keyword == 'Localtime':
                 _, self.client_localtime = self.split_option(line)
+
             elif keyword == 'COMMAND':
                 _, self.extcmd = line.split(' ', 1)
+
             else:
                 # This line is not valid or not implemented
-                logger.error("[Livestatus Query] Received a line of input which i can't handle: '%s'" % line)
-                pass
+                logger.error("[Livestatus Query] Received a line of input which i can't handle: '%s'", line)
         self.metainfo = LiveStatusQueryMetainfo(data)
 
     def process_query(self):
@@ -306,16 +339,16 @@ class LiveStatusQuery(object):
         self.stats_columns = list(set(self.stats_columns))
 
         if self.stats_query:
-            if len(self.columns) > 0:
+            if self.columns:
                 # StatsGroupBy is deprecated. Columns: can be used instead
                 self.stats_group_by = self.columns
-            elif len(self.stats_group_by) > 0:
+            elif self.stats_group_by:
                 self.columns = self.stats_group_by + self.stats_columns
-            #if len(self.stats_columns) > 0 and len(self.columns) == 0:
-            if len(self.stats_columns) > 0:
+            # if len(self.stats_columns) > 0 and len(self.columns) == 0:
+            if self.stats_columns:
                 self.columns = self.stats_columns + self.columns
         else:
-            if len(self.columns) == 0:
+            if not self.columns:
                 self.outputcolumns = list_livestatus_attributes(self.table)
             else:
                 self.outputcolumns = self.columns
@@ -337,10 +370,11 @@ class LiveStatusQuery(object):
             else:
                 # If the pnpgraph_present column is involved, then check
                 # with each request if the pnp perfdata path exists
-                if 'pnpgraph_present' in self.columns + self.filtercolumns + self.prefiltercolumns and self.pnp_path and os.access(self.pnp_path, os.R_OK):
+                self.pnp_path_readable = False
+                if 'pnpgraph_present' in self.columns + self.filtercolumns + self.prefiltercolumns \
+                        and self.pnp_path \
+                        and os.access(self.pnp_path, os.R_OK):
                     self.pnp_path_readable = True
-                else:
-                    self.pnp_path_readable = False
                 # Apply the filters on the broker's host/service/etc elements
 
                 result = self.get_live_data(cs)
@@ -349,7 +383,7 @@ class LiveStatusQuery(object):
                 self.columns = range(num_stats_filters)
                 if self.stats_group_by:
                     self.columns = tuple(list(self.stats_group_by) + list(self.columns))
-                if len(self.aliases) == 0:
+                if not self.aliases:
                     # If there were Stats: statements without "as", show no column headers at all
                     self.response.columnheaders = 'off'
                 else:
@@ -363,9 +397,9 @@ class LiveStatusQuery(object):
                 # to be a list of dicts instead a list of objects
                 self.stats_query = True
 
-        except Exception, e:
+        except Exception as exp:
             import traceback
-            logger.error("[Livestatus Query] Error: %s" % e)
+            logger.error("[Livestatus Query] Error: %s", str(exp))
             traceback.print_exc(32)
             result = []
 
@@ -404,38 +438,32 @@ class LiveStatusQuery(object):
     def get_services_livedata(self, cs):
         return self.get_hosts_or_services_livedata(cs)
 
-    def get_simple_livedata(self, cs):
+    def get_simple_livedata(self, cs):  # pylint: disable=unused-argument
         return [obj for obj in getattr(self.datamgr.rg, self.table)]
 
     def get_filtered_livedata(self, cs):
         items = getattr(self.datamgr.rg, self.table).__itersorted__(self.metainfo.query_hints)
         if cs.without_filter:
             return [x for x in items]
-        else:
-            return [x for x in items if cs.filter_func(x)]
+
+        return [x for x in items if cs.filter_func(x)]
 
     def get_list_livedata(self, cs):
         t = self.table
         if cs.without_filter:
-            res = [y for y in
-                        reduce(list.__add__
-                            #, [ getattr(x, t) for x in self.datamgr.rg.services + self.datamgr.rg.hosts
-                                   # if len(getattr(x, t)) > 0 ]
-                            , [getattr(x, t) for x in self.datamgr.rg.services
-                                    if len(getattr(x, t)) > 0] +
-                             [getattr(x, t) for x in self.datamgr.rg.hosts
-                                    if len(getattr(x, t)) > 0]
-                            , [])
+            res = [
+                y for y in reduce(
+                    list.__add__,
+                    [getattr(x, t) for x in self.datamgr.rg.services if getattr(x, t)]
+                    + [getattr(x, t) for x in self.datamgr.rg.hosts if getattr(x, t)], []
+                )
             ]
         else:
-            res = [c for c in reduce(list.__add__
-                        , [getattr(x, t) for x in self.datamgr.rg.services
-                                if len(getattr(x, t)) > 0] +
-                         [getattr(x, t) for x in self.datamgr.rg.hosts
-                                if len(getattr(x, t)) > 0]
-                        , []
-                        )
-                    if cs.filter_func(c)]
+            res = [c for c in reduce(
+                list.__add__,
+                [getattr(x, t) for x in self.datamgr.rg.services if getattr(x, t)]
+                + [getattr(x, t) for x in self.datamgr.rg.hosts if getattr(x, t)], []
+            ) if cs.filter_func(c)]
         return res
 
     def get_group_livedata(self, cs, objs, groupattr1, groupattr2, sorter):
@@ -443,7 +471,8 @@ class LiveStatusQuery(object):
         return a list of elements from a "group" of 'objs'. group can be a hostgroup or a servicegroup.
         if an element of objs (a host or a service) is member of groups
         (which means, it has >1 entry in its host/servicegroup attribute (groupattr1))
-        then for each of these groups there will be a copy of the original element with a new attribute called groupattr2
+        then for each of these groups there will be a copy of the original element with
+        a new attribute called groupattr2
         which points to the group
         objs: the objects to get elements from.
         groupattr1: the attribute where an element's groups can be found
@@ -455,22 +484,32 @@ class LiveStatusQuery(object):
             setattr(obj, attribute, groupobj)
 
         return sorted((
-            factory(og[0], groupattr2, og[1]) or og[0] for og in ( # host, attr, hostgroup or host
-                (copy.copy(inner_list0[0]), item0) for inner_list0 in ( # host', hostgroup
-                    (h, getattr(h, groupattr1)) for h in objs if (cs.without_filter or cs.filter_func(h))  # 1 host, [seine hostgroups]
-                ) for item0 in inner_list0[1] # item0 ist einzelne hostgroup
+            factory(og[0], groupattr2, og[1]) or og[0] for og in (
+                (copy.copy(inner_list0[0]), item0) for inner_list0 in (
+                    (h, getattr(h, groupattr1)) for h in objs if (cs.without_filter or cs.filter_func(h))
+                ) for item0 in inner_list0[1]
             )
         ), key=sorter)
 
     def get_hostsbygroup_livedata(self, cs):
-        sorter = lambda k: k.hostgroup.hostgroup_name
-        return self.get_group_livedata(cs, self.datamgr.rg.hosts.__itersorted__(self.metainfo.query_hints), 'hostgroups', 'hostgroup', sorter)
+        # sorter = lambda k: k.hostgroup.hostgroup_name
+        def sorter(k):
+            return k.hostgroup.hostgroup_name
+
+        return self.get_group_livedata(cs,
+                                       self.datamgr.rg.hosts.__itersorted__(self.metainfo.query_hints),
+                                       'hostgroups', 'hostgroup', sorter)
 
     def get_servicesbygroup_livedata(self, cs):
-        sorter = lambda k: k.servicegroup.servicegroup_name
-        return self.get_group_livedata(cs, self.datamgr.rg.services.__itersorted__(self.metainfo.query_hints), 'servicegroups', 'servicegroup', sorter)
+        # sorter = lambda k: k.servicegroup.servicegroup_name
+        def sorter(k):
+            return k.servicegroup.servicegroup_name
 
-    def get_problem_livedata(self, cs):
+        return self.get_group_livedata(cs,
+                                       self.datamgr.rg.services.__itersorted__(self.metainfo.query_hints),
+                                       'servicegroups', 'servicegroup', sorter)
+
+    def get_problem_livedata(self, cs):  # pylint: disable=unused-argument
         # We will create a problems list first with all problems and source in it
         # TODO: create with filter
         problems = []
@@ -485,10 +524,10 @@ class LiveStatusQuery(object):
         # Then return
         return problems
 
-    def get_status_livedata(self, cs):
+    def get_status_livedata(self, cs):  # pylint: disable=unused-argument
         return [c for c in self.datamgr.rg.configs.values()]
 
-    def get_columns_livedata(self, cs):
+    def get_columns_livedata(self, cs):  # pylint: disable=unused-argument
         result = []
         # The first 5 lines must be hard-coded
         # description;name;table;type
@@ -497,14 +536,21 @@ class LiveStatusQuery(object):
         # The name of the table;table;columns;string
         # The data type of the column (int, float, string, list);type;columns;string
         result.append({
-            'description': 'A description of the column', 'name': 'description', 'table': 'columns', 'type': 'string'})
+            'description': 'A description of the column',
+            'name': 'description', 'table': 'columns', 'type': 'string'})
         result.append({
-            'description': 'The name of the column within the table', 'name': 'name', 'table': 'columns', 'type': 'string'})
+            'description': 'The name of the column within the table',
+            'name': 'name', 'table': 'columns', 'type': 'string'})
         result.append({
-            'description': 'The name of the table', 'name': 'table', 'table': 'columns', 'type': 'string'})
+            'description': 'The name of the table',
+            'name': 'table', 'table': 'columns', 'type': 'string'})
         result.append({
-            'description': 'The data type of the column (int, float, string, list)', 'name': 'type', 'table': 'columns', 'type': 'string'})
-        tablenames = ['hosts', 'services', 'hostgroups', 'servicegroups', 'contacts', 'contactgroups', 'commands', 'downtimes', 'comments', 'timeperiods', 'status', 'log', 'hostsbygroup', 'servicesbygroup', 'servicesbyhostgroup', 'status']
+            'description': 'The data type of the column (int, float, string, list)',
+            'name': 'type', 'table': 'columns', 'type': 'string'})
+        tablenames = [
+            'hosts', 'services', 'hostgroups', 'servicegroups', 'contacts', 'contactgroups',
+            'commands', 'downtimes', 'comments', 'timeperiods', 'status', 'log',
+            'hostsbygroup', 'servicesbygroup', 'servicesbyhostgroup', 'status']
         for table in tablenames:
             cls = self.table_class_map[table][1]
             for attribute in cls.lsm_columns:
@@ -525,35 +571,38 @@ class LiveStatusQuery(object):
 
     def get_servicesbyhostgroup_livedata(self, cs):
         objs = self.datamgr.rg.services.__itersorted__(self.metainfo.query_hints)
+        # 1 service, and it's host
+        # 2 service clone and a hostgroup
+        # 2b only if the service's (from all services->filtered in the innermost loop) host has groups
         return sorted([x for x in (
             setattr(svchgrp[0], 'hostgroup', svchgrp[1]) or svchgrp[0] for svchgrp in (
-                (copy.copy(inner_list0[0]), item0) for inner_list0 in ( # 2 service clone and a hostgroup
-                    (s, s.host.hostgroups) for s in objs if (cs.without_filter or cs.filter_func(s))  # 1 service, and it's host
-                ) for item0 in inner_list0[1] if inner_list0[1] # 2b only if the service's (from all services->filtered in the innermost loop) host has groups
+                (copy.copy(inner_list0[0]), item0) for inner_list0 in (
+                    (s, s.host.hostgroups) for s in objs if (cs.without_filter or cs.filter_func(s))
+                ) for item0 in inner_list0[1] if inner_list0[1]
             )
         )], key=lambda svc: svc.hostgroup.hostgroup_name)
 
     objects_get_handlers = {
-        'hosts':                get_hosts_livedata,
-        'services':             get_services_livedata,
-        'commands':             get_filtered_livedata,
-        'schedulers':           get_simple_livedata,
-        'brokers':              get_simple_livedata,
-        'pollers':              get_simple_livedata,
-        'reactionners':         get_simple_livedata,
-        'contacts':             get_filtered_livedata,
-        'contactgroups':        get_filtered_livedata,
-        'hostgroups':           get_filtered_livedata,
-        'servicegroups':        get_filtered_livedata,
-        'timeperiods':          get_filtered_livedata,
-        'downtimes':            get_list_livedata,
-        'comments':             get_list_livedata,
-        'hostsbygroup':         get_hostsbygroup_livedata,
-        'servicesbygroup':      get_servicesbygroup_livedata,
-        'problems':             get_problem_livedata,
-        'status':               get_status_livedata,
-        'columns':              get_columns_livedata,
-        'servicesbyhostgroup':  get_servicesbyhostgroup_livedata
+        'hosts': get_hosts_livedata,
+        'services': get_services_livedata,
+        'commands': get_filtered_livedata,
+        'schedulers': get_simple_livedata,
+        'brokers': get_simple_livedata,
+        'pollers': get_simple_livedata,
+        'reactionners': get_simple_livedata,
+        'contacts': get_filtered_livedata,
+        'contactgroups': get_filtered_livedata,
+        'hostgroups': get_filtered_livedata,
+        'servicegroups': get_filtered_livedata,
+        'timeperiods': get_filtered_livedata,
+        'downtimes': get_list_livedata,
+        'comments': get_list_livedata,
+        'hostsbygroup': get_hostsbygroup_livedata,
+        'servicesbygroup': get_servicesbygroup_livedata,
+        'problems': get_problem_livedata,
+        'status': get_status_livedata,
+        'columns': get_columns_livedata,
+        'servicesbyhostgroup': get_servicesbyhostgroup_livedata
     }
 
     def get_live_data(self, cs):
@@ -576,13 +625,13 @@ class LiveStatusQuery(object):
 
         handler = self.objects_get_handlers.get(self.table, None)
         if not handler:
-            logger.warning("[Livestatus Query] Got unhandled table: %s" % (self.table))
+            logger.warning("[Livestatus Query] Got unhandled table: %s", self.table)
             return []
 
         result = handler(self, cs)
         # Now we have a list of full objects (Host, Service, ....)
 
-        #if self.limit:
+        # if self.limit:
         #    if isinstance(res, list):
         #        res = res[:self.limit]
         #    else:
@@ -594,17 +643,17 @@ class LiveStatusQuery(object):
         """Convert an object to a dict with selected keys."""
         output = {}
         # what to do with empty?
-        logger.debug("[Livestatus Query] Prepare columns %s" % str(self.outputcolumns))
+        logger.debug("[Livestatus Query] Prepare columns %s", str(self.outputcolumns))
         for column in self.outputcolumns:
             try:
-                value = getattr(item, 'lsm_'+column)(self)
+                value = getattr(item, 'lsm_' + column)(self)
             except Exception:
-                if hasattr(item, 'lsm_'+column):
-                    logger.error("[Livestatus Query] This looks like a serious error: %s" % column)
-                    value = getattr(item, 'lsm_'+column).im_func.default
+                if hasattr(item, 'lsm_' + column):
+                    logger.error("[Livestatus Query] This looks like a serious error: %s", column)
+                    value = getattr(item, 'lsm_' + column).im_func.default
                 else:
                     logger.error("[Livestatus Query] This looks like a serious error i can catch")
-                    value = getattr(item, 'lsm_'+column).im_func.default
+                    value = getattr(item, 'lsm_' + column).im_func.default
             output[column] = value
         return output
 
@@ -635,9 +684,12 @@ class LiveStatusQuery(object):
         groupedresult is a dict where the keys are unique combinations of the stats_group_by attributes
                                 where the values are arrays of elements which have those attributes in common
         Example:
-            groupedresult[("host1","svc1")] = { host_name: "host1", service_description: "svc1", state: 2, in_downtime: 0 }
-            groupedresult[("host1","svc2")] = { host_name: "host1", service_description: "svc2", state: 0, in_downtime: 0 }
-            groupedresult[("host1","svc2")] = { host_name: "host1", service_description: "svc2", state: 1, in_downtime: 1 }
+            groupedresult[("host1","svc1")] = { host_name: "host1",
+                                                service_description: "svc1", state: 2, in_downtime: 0 }
+            groupedresult[("host1","svc2")] = { host_name: "host1",
+                                                service_description: "svc2", state: 0, in_downtime: 0 }
+            groupedresult[("host1","svc2")] = { host_name: "host1",
+                                                service_description: "svc2", state: 1, in_downtime: 1 }
 
         resultdict is a dict where the keys are unique combinations of the stats_group_by attributes
                             where the values are dicts
@@ -670,14 +722,14 @@ class LiveStatusQuery(object):
             # Break up filtresult and prepare resultdict
             # rseultarr is not a simple array (for a single result line)
             # It is a dict with the statsgroupyby: as key
-            groupedresult = {}
+            grouped_result = {}
             for elem in filtresult:
                 # Make a tuple consisting of the stats_group_by values
-                stats_group_by_values = tuple([getattr(elem, 'lsm_'+c)(self) for c in self.stats_group_by])
-                if not stats_group_by_values in groupedresult:
-                    groupedresult[stats_group_by_values] = []
-                groupedresult[stats_group_by_values].append(elem)
-            for group in groupedresult:
+                stats_group_by_values = tuple([getattr(elem, 'lsm_' + c)(self) for c in self.stats_group_by])
+                if stats_group_by_values not in grouped_result:
+                    grouped_result[stats_group_by_values] = []
+                grouped_result[stats_group_by_values].append(elem)
+            for group in grouped_result:
                 # All possible combinations of stats_group_by values. group is a tuple
                 resultdict[group] = dict(zip(self.stats_group_by, group))
 
@@ -686,7 +738,7 @@ class LiveStatusQuery(object):
         maxidx = self.stats_filter_stack.qsize()
         for i in range(maxidx):
             # Stats:-statements were put on a Lifo, so we need to reverse the number
-            #stats_number = str(maxidx - i - 1)
+            # stats_number = str(maxidx - i - 1)
             stats_number = maxidx - i - 1
             # First, get a filter for the attributes mentioned in Stats: statements
             filtfunc = self.stats_filter_stack.get()
@@ -695,8 +747,8 @@ class LiveStatusQuery(object):
             if self.stats_group_by:
                 # Calc statistics over _all_ elements of groups
                 # which share the same stats_filter_by
-                for group in groupedresult:
-                    resultdict[group][stats_number] = postprocess(filter(filtfunc, groupedresult[group]))
+                for group in grouped_result:
+                    resultdict[group][stats_number] = postprocess(filter(filtfunc, grouped_result[group]))
             else:
                 # Calc statistics over _all_ elements of filtresult
                 if isinstance(filtresult, list):
@@ -719,11 +771,11 @@ class LiveStatusQuery(object):
             # may be an integer. (current_attempt for example)
             # So for the filter to work correctly (the two values compared must be
             # of the same type), we need to convert the reference to the desired type
-            converter = find_filter_converter(self.table, 'lsm_'+attribute)
+            converter = find_filter_converter(self.table, 'lsm_' + attribute)
             if converter:
                 reference = converter(reference)
             if isinstance(reference, str):
-                reference = reference.decode('utf8','ignore')
+                reference = reference.decode('utf8', 'ignore')
         attribute = 'lsm_' + attribute
 
         # The filters are closures.
@@ -791,8 +843,8 @@ class LiveStatusQuery(object):
             try:
                 if getattr(item, attribute).im_func.datatype == list:
                     return reference in getattr(item, attribute)(self)
-                else:
-                    return getattr(item, attribute)(self) >= reference
+
+                return getattr(item, attribute)(self) >= reference
             except Exception:
                 if hasattr(item, attribute):
                     return getattr(item.__class__, attribute).im_func.default >= reference
@@ -817,7 +869,7 @@ class LiveStatusQuery(object):
         def not_match_nocase_filter(item):
             return not match_nocase_filter(item)
 
-        def dummy_filter(item):
+        def dummy_filter(item):  # pylint: disable=unused-argument
             return True
 
         def count_postproc(item):
@@ -830,21 +882,21 @@ class LiveStatusQuery(object):
             return sum(float(getattr(obj, attribute)(self)) for obj in item)
 
         def max_postproc(item):
-            if item != []:
+            if item:
                 return max(float(getattr(obj, attribute)(self)) for obj in item)
             return 0
 
         def min_postproc(item):
-            if item != []:
+            if item:
                 return min(float(getattr(obj, attribute)(self)) for obj in item)
             return 0
 
         def avg_postproc(item):
-            if item != []:
+            if item:
                 return sum(float(getattr(obj, attribute)(self)) for obj in item)
             return 0
 
-        def std_postproc(item):
+        def std_postproc(item):  # pylint: disable=unused-argument
             return 0
 
         if operator == '=':

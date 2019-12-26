@@ -50,8 +50,7 @@ class LiveStatusCommandQuery(LiveStatusQuery):
             else:
                 # This line is not valid or not implemented
                 logger.warning("[Livestatus Broker Command Query] Received a line of input "
-                               "which i can't handle: '%s'" % line)
-                pass
+                               "which i can't handle: '%s'", line)
 
     def launch_query(self):
         """ Prepare the request object's filter stacks """
@@ -67,4 +66,4 @@ class LiveStatusCommandQuery(LiveStatusQuery):
             # self.extcmd = self.extcmd.decode('utf8', 'replace')
             e = ExternalCommand(self.extcmd)
             self.return_queue.put(e)
-            return []
+            # return []

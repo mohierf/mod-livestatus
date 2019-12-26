@@ -72,11 +72,10 @@ class LFU(object):
     def put(self, key, data):
         self.storage[key] = data
         if len(self.storage) > self.maxsize:
-            for key, _ in nsmallest(self.maxsize // 10,
-                                    self.use_count.iteritems(),
-                                    key=itemgetter(1)):
-                del self.storage[key], self.use_count[key]
-        pass
+            for key2, _ in nsmallest(self.maxsize // 10,
+                                     self.use_count.iteritems(),
+                                     key=itemgetter(1)):
+                del self.storage[key2], self.use_count[key2]
 
     def __str__(self):
         text = 'LFU-------------------\n'
@@ -120,7 +119,7 @@ class LiveStatusQueryCache(object):
         the data for the tactical overview.
         """
         try:
-            logger.debug("[Livestatus Broker Query Cache] I wipe sub-cache: %s" % str(category))
+            logger.debug("[Livestatus Broker Query Cache] I wipe sub-cache: %s", str(category))
             self.categories[category].clear()
         except Exception:
             pass
@@ -175,8 +174,7 @@ class LiveStatusQueryCache(object):
                 self.invalidate_category(CACHE_GLOBAL_STATS)
                 self.invalidate_category(CACHE_SERVICE_STATS)
             if brok.data['state_type_id'] != obj.state_type_id:
-                logger.info("[Livestatus Broker Query Cache] Detected statetypechange: %s",
-                            str(obj))
+                logger.info("[Livestatus Broker Query Cache] Detected statetypechange: %s", str(obj))
                 self.invalidate_category(CACHE_GLOBAL_STATS_WITH_STATETYPE)
                 self.invalidate_category(CACHE_SERVICE_STATS)
             logger.debug("[Livestatus Broker Query Cache] Obj State id: %d and State type id: %d, "

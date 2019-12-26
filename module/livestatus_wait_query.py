@@ -42,6 +42,8 @@ class LiveStatusWaitQuery(LiveStatusQuery):
         self.wait_start = time.time()
         self.wait_timeout = 0
         self.wait_trigger = 'all'
+        self.pnp_path_readable = False
+        self.metainfo = None
 
     def parse_input(self, data):
         """Parse the lines of a livestatus request.
@@ -126,7 +128,7 @@ class LiveStatusWaitQuery(LiveStatusQuery):
                         self.db.add_filter(operator, attribute, reference)
                 else:
                     logger.warning("[Livestatus Wait Query] Illegal operation: %s", str(operator))
-                    pass  # illegal operation
+
             elif keyword == 'WaitConditionAnd':
                 _, andnum = self.split_option(line)
                 # Take the last andnum functions from the stack
@@ -148,9 +150,8 @@ class LiveStatusWaitQuery(LiveStatusQuery):
                 self.wait_timeout = int(self.wait_timeout) / 1000
             else:
                 # This line is not valid or not implemented
-                logger.warning("[Livestatus Wait Query] Received a line of input "
-                               "which i can't handle: '%s'", line)
-                pass
+                logger.warning("[Livestatus Wait Query] Received a line of input which i can't handle: '%s'", line)
+
         # Make columns unique
         self.filtercolumns = list(set(self.filtercolumns))
         self.prefiltercolumns = list(set(self.prefiltercolumns))
@@ -177,25 +178,24 @@ class LiveStatusWaitQuery(LiveStatusQuery):
             # Remember the number of stats filters. We need these numbers as columns later.
             # But we need to ask now, because get_live_data() will empty the stack
             if self.table == 'log':
-                result = self.get_live_data_log()
+                result = self.get_live_data_log(None)
             else:
                 # If the pnpgraph_present column is involved, then check
                 # with each request if the pnp perfdata path exists
+                self.pnp_path_readable = False
                 if ('pnpgraph_present' in self.columns + self.filtercolumns + self.prefiltercolumns
                         and self.pnp_path and os.access(self.pnp_path, os.R_OK)):
                     self.pnp_path_readable = True
-                else:
-                    self.pnp_path_readable = False
                 # Apply the filters on the broker's host/service/etc elements
                 result = self.get_live_data()
-        except Exception, e:
+        except Exception as exp:
             import traceback
-            logger.error("[Livestatus Wait Query]  Error: %s" % e)
+            logger.error("[Livestatus Wait Query]  Error: %s", exp)
             traceback.print_exc(32)
             result = []
         return result
 
-    def get_live_data(self):
+    def get_live_data(self, cs=None):
         """Find the objects which match the request.
 
         This function scans a list of objects (hosts, services, etc.) and

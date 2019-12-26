@@ -31,7 +31,7 @@ class Counter(dict):
     when we finally get rid of Python 2.4
     """
 
-    def __init__(self, default_factory=None, *a, **kw):
+    def __init__(self, *a, **kw):
         dict.__init__(self, *a, **kw)
 
     def __getitem__(self, key):

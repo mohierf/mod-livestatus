@@ -47,10 +47,10 @@ ColumnHeaders: off
 
 
 class TestFull_WaitQuery(TestConfig):
-    ''' "Full" test : that is with connection to livestatus socket
-    And so we have to start a thread to execute the actual main livestatus function (manage_lql_thread),
-    which will handle new connections as it would do in real life.
-    '''
+    """ "Full" test : that is with connection to livestatus socket
+    And so we have to start a thread to execute the actual main livestatus
+    function (manage_lql_thread), which will handle new connections as it would do in real life.
+    """
 
     def tearDown(self):
         # stop thread
@@ -71,6 +71,17 @@ class TestFull_WaitQuery(TestConfig):
             'modules': ''
         })
         self.init_livestatus(self.modconf)
+
+    def update_broker(self, dodeepcopy=False):
+        """Overloads the Shinken update_broker method because it does not handle
+        the broks list as a list but as a dict !"""
+        for brok in self.sched.brokers['Default-Broker']['broks']:
+            if dodeepcopy:
+                brok = copy.deepcopy(brok)
+            brok.prepare()
+            # print("Managing a brok, type: %s" % brok.type)
+            self.livestatus_broker.manage_brok(brok)
+        self.sched.brokers['Default-Broker']['broks'] = []
 
     def init_livestatus(self, conf):
         super(TestFull_WaitQuery, self).init_livestatus(conf)
@@ -113,16 +124,17 @@ class TestFull_WaitQuery(TestConfig):
         finally:
             s.close()
 
-
     def test_wait_query_1(self):
 
-        ## NB NB NB:
-        # if there was a scheduler and a poller running and connected to `self.livestatus_broker.from_q´
-        # then the prepended command would be processed and the livestatus **could** return a different response,
-        # **depending** on :
-        # the wait_timeout_sec we use (which then should be greater than the randint(1,3) actually used)
-        # and on how fast the command would be processed by the poller
-        # and on how fast the host status would be updated after while within the livestatus process/thread.
+        #--- Note:
+        # if there was a scheduler and a poller running and connected to
+        # `self.livestatus_broker.from_q´ then the prepended command would be processed
+        # and the livestatus **could** return a different response, **depending** on :
+        # - the wait_timeout_sec we use (which then should be greater than the
+        # randint(1,3) actually used)
+        # - and on how fast the command would be processed by the poller
+        # - and on how fast the host status would be updated after while
+        # within the livestatus process/thread.
 
         now = int( time.time() ) # current livestatus wants an INTEGER value for WaitTimeout ..
         host = 'test_host_0'
@@ -160,7 +172,3 @@ ColumnHeaders: true
         data = self.livestatus_broker.from_q.get(block=False)
         self.assertIsInstance(data, ExternalCommand)
         self.assertEqual(command, data.cmd_line)
-
-
-if __name__ == '__main__':
-    unittest.main()

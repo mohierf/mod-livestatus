@@ -26,7 +26,7 @@ import threading
 import time
 
 
-class LiveStatusCounters:  # (LiveStatus):
+class LiveStatusCounters(object):  # (LiveStatus):
     def __init__(self):
         self.lock = threading.Lock()
         self.counters = {
@@ -89,7 +89,6 @@ class LiveStatusCounters:  # (LiveStatus):
         elif counter.endswith('_rate'):
             if counter[0:-5] in self.rate:
                 return self.rate[counter[0:-5]]
-            else:
-                return 0.0
-        else:
-            return 0
+            return 0.0
+
+        return 0

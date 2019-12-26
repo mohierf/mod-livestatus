@@ -26,29 +26,6 @@ import Queue
 from shinken.log import logger
 
 
-class MyLifoQueue(Queue.Queue):
-    """A class that implements a Fifo.
-
-    Python versions < 2.5 do not have the Queue.LifoQueue class.
-    MyLifoQueue overwrites methods of the Queue.Queue class and
-    then behaves like Queue.LifoQueue.
-
-    """
-
-    def _init(self, maxsize):
-        self.maxsize = maxsize
-        self.queue = []
-
-    def _qsize(self, len=len):
-        return len(self.queue)
-
-    def _put(self, item):
-        self.queue.append(item)
-
-    def _get(self):
-        return self.queue.pop()
-
-
 class TopBaseLiveStatusStack(object):
     pass
 
@@ -73,6 +50,7 @@ class LiveStatusStack(TopBaseLiveStatusStack):
     """
 
     def __xinit__(self, *args, **kw):
+        # pylint: disable=attribute-defined-outside-init
         self.type = 'lambda'
         logger.info("[Livestatus Stack] I am a %s", type(self))
         logger.info("[Livestatus Stack] My parents are %s",
@@ -84,6 +62,7 @@ class LiveStatusStack(TopBaseLiveStatusStack):
 
     def not_elements(self):
         top_filter = self.get_stack()
+
         def negate_filter(ref):
             return not top_filter(ref)
         self.put_stack(negate_filter)
@@ -135,21 +114,12 @@ class LiveStatusStack(TopBaseLiveStatusStack):
         """Return the top element from the stack or a filter which is always true"""
         if self.qsize() == 0:
             return lambda x: True
-        else:
-            return self.get()
+
+        return self.get()
 
     def put_stack(self, element):
         """Wrapper for a stack put operation which corresponds to get_stack"""
         self.put(element)
 
 
-try:
-    # TODO: clean/fix this hack :
-    Queue.LifoQueue
-    TopBaseLiveStatusStack.__bases__ = (Queue.LifoQueue, object)
-    # LiveStatusStack.__bases__ += (Queue.LifoQueue, )
-except AttributeError:
-    # Python 2.4 and 2.5 do not have it.
-    # Use our own implementation.
-    TopBaseLiveStatusStack.__bases__ = (MyLifoQueue, object)
-    # LiveStatusStack.__bases__ += (MyLifoQueue, )
+TopBaseLiveStatusStack.__bases__ = (Queue.LifoQueue, object)

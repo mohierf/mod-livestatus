@@ -30,17 +30,17 @@ import csv
 from StringIO import StringIO
 
 try:
-    from ujson import dumps, loads
+    from ujson import dumps
 except ImportError:
     try:
-        from simplejson import dumps, loads, JSONEncoder
+        from simplejson import dumps, JSONEncoder
         # ujson's dumps() cannot handle a separator parameter, which is
         # needed to avoid unnecessary spaces in the json output
         # That's why simplejson and json manipulate the encoder class
         JSONEncoder.item_separator = ','
         JSONEncoder.key_separator = ':'
     except ImportError:
-        from json import dumps, loads, JSONEncoder
+        from json import dumps, JSONEncoder
         JSONEncoder.item_separator = ','
         JSONEncoder.key_separator = ':'
 
@@ -52,7 +52,7 @@ from livestatus_query_error import LiveStatusQueryError
 #############################################################################
 
 Separators = namedtuple('Separators',
-                        ('line', 'field', 'list', 'pipe')) # pipe is used within livestatus_broker.mapping 
+                        ('line', 'field', 'list', 'pipe'))  # pipe is used within livestatus_broker.mapping
 
 
 class LiveStatusListResponse(list):
@@ -69,13 +69,14 @@ recursively iter of the values of eventual sub-LiveStatusListResponse. '''
                 yield value
 
     def total_len(self):
-        '''
+        """
         :return: The total "len" of what's contained in this LiveStatusListResponse instance.
-If this instance contains others LiveStatusListResponse instances then their total_len() will also be summed
-If this instance contains generators then they will be exhausted and their generated data will replace the
-generator value at its index in this list.
-        '''
+        If this instance contains others LiveStatusListResponse instances then their total_len() will also be summed
+        If this instance contains generators then they will be exhausted and their generated data will replace the
+        generator value at its index in this list.
+        """
         tot = 0
+        # pylint: disable=consider-using-enumerate
         for idx in range(len(self)):
             value = self[idx]
             if isinstance(value, GeneratorType):
@@ -100,7 +101,7 @@ generator value at its index in this list.
         del self[:]
 
 
-class LiveStatusResponse:
+class LiveStatusResponse(object):
     """A class which represents the response to a LiveStatusRequest.
 
     Public functions:
@@ -112,7 +113,8 @@ class LiveStatusResponse:
 
     separators = Separators('\n', ';', ',', '|')
 
-    def __init__(self, responseheader='off', outputformat='csv', keepalive='off', columnheaders='off', separators=separators):
+    def __init__(self, responseheader='off', outputformat='csv', keepalive='off',
+                 columnheaders='off', separators=separators):
         self.responseheader = responseheader
         self.outputformat = outputformat
         self.keepalive = keepalive
@@ -129,22 +131,21 @@ class LiveStatusResponse:
 
     def set_error(self, statuscode, data):
         del self.output[:]
-        self.output.append( LiveStatusQueryError.messages[statuscode] % data )
+        self.output.append(LiveStatusQueryError.messages[statuscode] % data)
         self.statuscode = statuscode
 
     def load(self, query):
+        # pylint: disable=attribute-defined-outside-init
         self.query = query
 
     def get_response_len(self, rsp=None):
         if rsp is None:
             rsp = self.output
-        return ( rsp.total_len()
-                 if isinstance(rsp, LiveStatusListResponse)
-                 else len(rsp) )
+        return (rsp.total_len() if isinstance(rsp, LiveStatusListResponse) else len(rsp))
 
     def respond(self):
         if self.responseheader == 'fixed16':
-            responselength = 1 + self.get_response_len() # 1 for the final '\n'
+            responselength = 1 + self.get_response_len()  # 1 for the final '\n'
             self.output.insert(0, '%3d %11d\n' % (self.statuscode, responselength))
         self.output.append('\n')
         return self.output, self.keepalive
@@ -152,8 +153,8 @@ class LiveStatusResponse:
     def _format_json_python_value(self, value):
         if isinstance(value, bool):
             return 1 if value else 0
-        else:
-            return value
+
+        return value
 
     def _format_csv_value(self, value):
         if isinstance(value, list):
@@ -164,10 +165,10 @@ class LiveStatusResponse:
             try:
                 return str(value)
             except UnicodeEncodeError as err:
-                logger.warning('UnicodeEncodeError on str() of: %r : %s' % (value, err))
+                logger.warning('UnicodeEncodeError on str() of: %r : %s', value, err)
                 return value.encode('utf-8', 'replace')
             except Exception as err:
-                logger.warning('Unexpected error on str() of: %r : %s' % (value, err))
+                logger.warning('Unexpected error on str() of: %r : %s', value, err)
                 return ''
 
     def _csv_end_row(self, row, line_nr=0):
@@ -191,15 +192,16 @@ class LiveStatusResponse:
             ret.append(repr(item))
             ret.append(', ')
         if row:
-            del ret[-1] # skip last ','
+            del ret[-1]  # skip last ','
         ret.append(']')
         return ''.join(ret)
 
     _format_2_value_handler = {
-        'csv':      (_csv_end_row, _format_csv_value),
-        'json':     (_json_end_row, _format_json_python_value),
-        'python':   (_python_end_row, _format_json_python_value)
+        'csv': (_csv_end_row, _format_csv_value),
+        'json': (_json_end_row, _format_json_python_value),
+        'python': (_python_end_row, _format_json_python_value)
     }
+
     def make_live_data_generator2(self, result, columns, aliases):
         assert self.outputformat in self._format_2_value_handler
 
@@ -214,9 +216,7 @@ class LiveStatusResponse:
             # There is no pre-selected list of columns. In this case
             # we output all columns.
 
-        headers = list((aliases[col] for col in columns)
-                        if len(aliases)
-                        else columns)
+        headers = list((aliases[col] for col in columns) if aliases else columns)
         headers = row_handler(self, headers)
 
         has_no_item = False
@@ -227,11 +227,11 @@ class LiveStatusResponse:
 
         if self.outputformat != 'csv':
             showheader = self.columnheaders == 'on'
-        else: # csv has a somehow more complicated showheader rule than json or python..
+        else:  # csv has a somehow more complicated showheader rule than json or python..
             showheader = (
-            (has_no_item and self.columnheaders == 'on')
-                or (not has_no_item and (self.columnheaders != 'off'
-                                     or not query_with_columns)))
+                (has_no_item and self.columnheaders == 'on')
+                or (not has_no_item and (self.columnheaders != 'off' or not query_with_columns))
+            )
 
         line_nr = 0
         if showheader:
@@ -242,32 +242,29 @@ class LiveStatusResponse:
                 yield self.separators.line
             return
 
-        #for item in result: # little trick, can you see it ? (hint: item)
+        # f or item in result: # little trick, can you see it ? (hint: item)
         while True:
             # Construct one line of output for each object found
-            l = []
+            log = []
             for c in columns:
                 attribute = 'lsm_' + c
                 try:
                     value = getattr(item, attribute)(self.query)
-                except Exception as err:
-                    #logger.warning('Error on getattr(item, attribute)(query) with item=%r attribute=%r : %s ; falling back on default..' % (
-                    #    item, attribute, err))
+                except Exception:
                     if hasattr(item, attribute):
                         value = getattr(item.__class__, attribute).im_func.default
                     else:
                         # If nothing else helps, leave the column blank
                         value = ''
-                l.append(row_item_handler(self, value))
+                log.append(row_item_handler(self, value))
 
-            yield row_handler(self, l, line_nr)
+            yield row_handler(self, log, line_nr)
 
             try:
                 item = next(result)
             except StopIteration:
                 return
             line_nr += 1
-
 
     def make_live_data_generator(self, result, columns, aliases):
         assert self.outputformat in ('csv', 'json', 'python')
@@ -282,18 +279,10 @@ class LiveStatusResponse:
             yield ']'
 
     def format_live_data(self, result, columns, aliases):
-        '''
-
-        :param result:
-        :param columns:
-        :param aliases:
-        :return:
-        '''
         if self.query.stats_query:
             return self.format_live_data_stats(result, columns, aliases)
 
-        self.output.append(self.make_live_data_generator(result, columns, aliases))
-
+        return self.output.append(self.make_live_data_generator(result, columns, aliases))
 
     def format_live_data_stats(self, result, columns, aliases):
         showheader = False
@@ -303,41 +292,41 @@ class LiveStatusResponse:
             for item in result:
 
                 # Construct one line of output for each object found
-                l = []
+                log = []
                 for value in [item[c] for c in columns]:
                     if isinstance(value, list):
-                        l.append(self.separators.list.join(str(y) for y in value))
+                        log.append(self.separators.list.join(str(y) for y in value))
                     elif isinstance(value, bool):
-                        l.append('1' if value else '0')
+                        log.append('1' if value else '0')
                     else:
                         try:
-                            l.append(str(value))
+                            log.append(str(value))
                         except UnicodeEncodeError as err:
-                            logger.warning('UnicodeEncodeError on str() of: %r : %s' % (value, err))
-                            l.append(value.encode("utf-8", "replace"))
+                            logger.warning('UnicodeEncodeError on str() of: %r : %s', value, err)
+                            log.append(value.encode("utf-8", "replace"))
                         except Exception as err:
-                            logger.warning('Unexpected error on str() of: %r : %s' % (value, err))
-                            l.append("")
-                lines.append(self.separators.field.join(l) + self.separators.line)
+                            logger.warning('Unexpected error on str() of: %r : %s', value, err)
+                            log.append("")
+                lines.append(self.separators.field.join(log) + self.separators.line)
             # end for item in result
 
-            if len(lines) > 0:
-                lines[-1] = lines[-1][:-1] # skip last added separator
-                if self.columnheaders != 'off' or len(columns) == 0:
-                    if len(aliases) > 0:
+            if lines:
+                lines[-1] = lines[-1][:-1]  # skip last added separator
+                if self.columnheaders != 'off' or not columns:
+                    if aliases:
                         showheader = True
                     else:
                         showheader = True
-                        if len(columns) == 0:
+                        if not columns:
                             # Show all available columns
-                            #columns = sorted(object.keys())
+                            # columns = sorted(object.keys())
                             pass
             elif self.columnheaders == 'on':
                 showheader = True
 
             if showheader:
                 lines.insert(0, self.separators.field.join(
-                    (str(aliases[col]) for col in columns) if len(aliases)
+                    (str(aliases[col]) for col in columns) if aliases
                     else columns))
                 lines[0] += self.separators.line
 
@@ -346,7 +335,7 @@ class LiveStatusResponse:
         elif self.outputformat == 'json' or self.outputformat == 'python':
             encode = dumps if self.outputformat == 'json' else str
             for item in result:
-                #lines = self._compact(lines)
+                # lines = self._compact(lines)
                 rows = []
                 for c in columns:
                     if isinstance(item[c], bool):
@@ -356,6 +345,6 @@ class LiveStatusResponse:
                 lines.append(rows)
 
             if self.columnheaders == 'on':
-                lines.insert(0, (str(aliases[col]) for col in columns) if len(aliases) else columns)
+                lines.insert(0, (str(aliases[col]) for col in columns) if aliases else columns)
 
             self.output.append(encode(lines))

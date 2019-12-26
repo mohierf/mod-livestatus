@@ -23,7 +23,7 @@
 # along with Shinken.  If not, see <http://www.gnu.org/licenses/>.
 
 
-class LiveStatusConstraints:
+class LiveStatusConstraints(object):
     """ Represent the constraints applied on a livestatus request """
 
     def __init__(self, filter_func, without_filter, authuser):
