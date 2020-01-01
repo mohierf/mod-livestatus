@@ -10,7 +10,6 @@
     :target: https://codecov.io/gh/mohierf/mod-livestatus
     :alt: Development code tests coverage
 
-
 =======================
 Shinken Livestatus API
 =======================
@@ -18,11 +17,6 @@ Shinken Livestatus API
 
 Overview
 =========
-
-
-  * Jump back to :ref:`Getting Started <gettingstarted/index>`
-  * Jump back to :ref:`Livestatus module configuration <the_broker_modules>`
-
 
 What is it
 -----------
@@ -33,7 +27,7 @@ Livestatus API is the modern method of interacting with Shinken and Nagios based
 Originally developed for Nagios, MK Livetstatus, was re-implemented in Python for use with Shinken by professional developers. The access methods and query languages are the same.
 
 
-.. image:: /_static/images/livestatus_-_network_communications.png
+.. image:: ./doc/_static/images/livestatus.png
    :scale: 90 %
 
 
@@ -107,18 +101,16 @@ Scripts
   * Debug scripts
 
 
-Installing Livestatus
-----------------------
+Installing
+----------
 
-
-Have you installed the required packages to use the Livestatus module? You can look at the requirement section of the :ref:`10 minute installation guide <gettingstarted/installations/shinken-installation>` for the :ref:`requirement lists <gettingstarted/installations/shinken-installation#requirements>`.
+Have you installed the required packages to use the Livestatus module? Install, as usual, the mod-livestatus module.
 
 
 How to enable Livestatus
 -------------------------
 
-
 Very simple, jump to the :ref:`Shinken Broker configuration <the_broker_modules>` section to enable it.
 
-.. _Shinken mapping.py methods: https://github.com/shinken-monitoring/mod-livestatus/blob/master/module/mapping.py
+.. _Shinken mapping.py methods: https://github.com/mohierf/mod-livestatus/blob/develop/module/mapping.py
 .. _MK Livestatus reference methods and query language definition: http://mathias-kettner.de/checkmk_livestatus.html
