@@ -178,9 +178,10 @@ class LiveStatus_broker(BaseModule, Daemon):
     def add_compatibility_sqlite_module(self):
         if not [m for m in self.modules_manager.instances if m.properties['type'].startswith('logstore_')]:
             #  this shinken-specific.cfg does not use the new submodules
+            parameters = {}
             for k in self.compat_sqlite:
-                if self.compat_sqlite[k] is None:
-                    del self.compat_sqlite[k]
+                if self.compat_sqlite[k] is not None:
+                    parameters[k] = self.compat_sqlite[k]
             dbmod = Module(self.compat_sqlite)
             self.modules_manager.set_modules([dbmod])
             self.modules_manager.load_and_init()
