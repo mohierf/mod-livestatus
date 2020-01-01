@@ -1,13 +1,22 @@
-.. image:: https://api.travis-ci.org/shinken-monitoring/mod-livestatus.svg?branch=master
-  :target: https://travis-ci.org/shinken-monitoring/mod-livestatus
-.. _livestatus_shinken:
+.. image:: https://api.travis-ci.org/mohierf/mod-livestatus.svg?branch=develop
+    :target: https://travis-ci.org/mohierf/mod-livestatus
+    :alt: Develop branch build status
+
+.. image:: https://api.codacy.com/project/badge/Grade/4ffb2900db7949e98e528a4a9f342d71
+    :target: https://www.codacy.com/manual/Shinken_modules/mod-livestatus?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=mohierf/mod-livestatus&amp;utm_campaign=Badge_Grade
+    :alt: Development code static analysis
+
+.. image:: https://codecov.io/gh/mohierf/mod-livestatus/branch/develop/graph/badge.svg
+    :target: https://codecov.io/gh/mohierf/mod-livestatus
+    :alt: Development code tests coverage
+
 
 =======================
-Shinken Livestatus API 
+Shinken Livestatus API
 =======================
 
 
-Overview 
+Overview
 =========
 
 
@@ -15,7 +24,7 @@ Overview
   * Jump back to :ref:`Livestatus module configuration <the_broker_modules>`
 
 
-What is it 
+What is it
 -----------
 
 
@@ -28,7 +37,7 @@ Originally developed for Nagios, MK Livetstatus, was re-implemented in Python fo
    :scale: 90 %
 
 
-Why use it 
+Why use it
 -----------
 
 
@@ -47,7 +56,7 @@ It uses an SQL based query language
 It has a host of powerful nuts and bolts features (authentication, caching, connection persistence, multiple object methods (JSON, Python)).
 
 
-What can I do with it? 
+What can I do with it?
 -----------------------
 
 
@@ -67,20 +76,20 @@ Shinken Livestatus API unique features can :
   * Obtain Business Process states (same syntax as standard host and service queries)
 
 
-How does it work 
+How does it work
 =================
 
 
 Livestatus uses a powerful SQL-like query language. The standard methods and parameters are defined at :
 
    `MK Livestatus reference methods and query language definition`_
-  
+
 Full list of Shinken Livestatus API methods:
 
 `Shinken mapping.py methods`_
 
 
-What software uses Livestatus to interact with Shinken 
+What software uses Livestatus to interact with Shinken
 =======================================================
 
 
@@ -98,14 +107,14 @@ Scripts
   * Debug scripts
 
 
-Installing Livestatus 
+Installing Livestatus
 ----------------------
 
 
 Have you installed the required packages to use the Livestatus module? You can look at the requirement section of the :ref:`10 minute installation guide <gettingstarted/installations/shinken-installation>` for the :ref:`requirement lists <gettingstarted/installations/shinken-installation#requirements>`.
 
 
-How to enable Livestatus 
+How to enable Livestatus
 -------------------------
 
 
